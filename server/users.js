@@ -68,6 +68,49 @@ module.exports = function startUser(app, con) {
         });
     });
 
+    //api endpoint to get a user's profile
+    app.get('/profile/:userId', (req, res) => {
+        const userId = req.params.userId;
+
+        if (!userId) {
+            return res.status(400).json({ message: 'Missing userId' });
+        }
+
+        con.query('CALL get_user_profile(?)', [userId], (err, results) => {
+            if (err) {
+                return res.json({ message: 'Database error', error: err.message });
+            }
+
+            if (!results[0] || results[0].length === 0) {
+                return res.status(404).json({ message: 'Profile not found' });
+            }
+
+            return res.json({ profile: results[0][0] });
+        });
+    });
+
+    // api endpoint to get discover candidates for a user
+    app.get('/discover/:userId', (req, res) => {
+        const userId = req.params.userId;
+
+    if (!userId) {
+        return res.status(400).json({ message: 'Missing userId' });
+    }
+
+    con.query('CALL get_discover_candidates(?)', [userId], (err, results) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({
+                message: 'Database error',
+                error: err.message
+            });
+        }
+
+        return res.json({
+            candidates: results[0]
+        });
+    });
+});
 
 
     //api endpoint to create profiles

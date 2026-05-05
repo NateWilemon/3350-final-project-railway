@@ -78,7 +78,21 @@ function fillTables() {
                     if (err) throw err;
                 })
             });
-            console.log("Created tables");
+          console.log("Created tables");
+
+// load sample data
+const sampleData = fs.readFileSync('sample_data.sql', 'utf8');
+const sampleQueries = sampleData.split(";").filter(q => q.trim());
+
+sampleQueries.forEach(query => {
+    query += ";"
+    con.query(query, function (err) {
+        if (err) throw err;
+    });
+});
+
+console.log("Inserted sample data");
+
         }
     });
 
