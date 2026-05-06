@@ -53,10 +53,6 @@ BEGIN
     SELECT LAST_INSERT_ID() AS match_id;
 END $$
 
-BEGIN
-    INSERT INTO matches (user1_id, user2_id, status, matched_at)
-    VALUES (p_user1_id, p_user2_id, 'active', NOW());
-END $$
 
 -- This puts our match into a conversation.
 CREATE PROCEDURE create_conversation (

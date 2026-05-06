@@ -130,106 +130,219 @@ module.exports = function startMatchmaking(app, con) {
         });
     });
 
-    // API endpoint to swipe yes or no
-// decision is a string: "yes" or "no"
-app.post('/swipe', async (req, res) => {
-    console.log(req.body);
+   // API endpoint to swipe yes or no
+    app.post('/swipe', async (req, res) => {
+        console.log(req.body);
 
-    const { userID, targetUserID, decision } = req.body;
+        const { userID, targetUserID, decision } = req.body;
 
-    if (!userID || !targetUserID || !decision) {
-        return res.status(400).json({
-            message: "Send userID, targetUserID, and decision as 'yes' or 'no' string"
-        });
-    }
+        if (!userID || !targetUserID || !decision) {
+            return res.status(400).json({
+                message: "Send userID, targetUserID, and decision as 'yes' or 'no'"
+            });
+        }
 
-    if (decision !== 'yes' && decision !== 'no') {
-        return res.status(400).json({
-            message: "Decision must be 'yes' or 'no' string"
-        });
-    }
+        if (decision !== 'yes' && decision !== 'no') {
+            return res.status(400).json({
+                message: "Decision must be 'yes' or 'no'"
+            });
+        }
 
-    // First, record the swipe
-    con.query(
-        'CALL record_swipe(?, ?, ?)',
-        [userID, targetUserID, decision],
-        (err) => {
+        con.query(
+            'CALL record_swipe(?, ?, ?)',
+            [userID, targetUserID, decision],
+            (err) => {
+                if (err) {
+                    return res.status(500).json({
+                        message: 'Database error while recording swipe',
+                        error: err.message
+                    });
+                }
+
+                if (decision === 'no') {
+                    return res.json({
+                        message: 'Swipe recorded',
+                        swipe: decision,
+                        matched: false
+                    });
+                }
+
+                con.query(
+                    'CALL check_mutual_like(?, ?)',
+                    [userID, targetUserID],
+                    (err, results) => {
+                        if (err) {
+                            return res.status(500).json({
+                                message: 'Database error while checking mutual like',
+                                error: err.message
+                            });
+                        }
+
+                        const mutualLikeCount = results[0][0].mutual_like_count;
+
+                        if (mutualLikeCount === 0) {
+                            return res.json({
+                                message: 'Swipe recorded, no match yet',
+                                swipe: decision,
+                                matched: false
+                            });
+                        }
+
+                        con.query(
+                            'CALL create_match(?, ?)',
+                            [userID, targetUserID],
+                            (err, matchResults) => {
+                                if (err) {
+                                    return res.status(500).json({
+                                        message: 'Database error while creating match',
+                                        error: err.message
+                                    });
+                                }
+
+                                const matchID = matchResults[0][0].match_id;
+
+                                con.query(
+                                    'CALL create_conversation(?)',
+                                    [matchID],
+                                    (err) => {
+                                        if (err) {
+                                            return res.status(500).json({
+                                                message: 'Database error while creating conversation',
+                                                error: err.message
+                                            });
+                                        }
+
+                                        return res.json({
+                                            message: 'Swipe recorded and match created',
+                                            swipe: decision,
+                                            matched: true,
+                                            matchID: matchID
+                                        });
+                                    }
+                                );
+                            }
+                        );
+                    }
+                );
+            }
+        );
+    });
+
+
+  // API endpoint to get matches for a user
+    app.get('/matches/:userId', (req, res) => {
+        const userId = parseInt(req.params.userId);
+
+        if (!userId) {
+            return res.status(400).json({ message: 'Missing userId' });
+        }
+
+        con.query('CALL get_user_matches(?)', [userId], (err, results) => {
             if (err) {
                 return res.status(500).json({
-                    message: 'Database error while recording swipe',
+                    message: 'Database error while getting matches',
                     error: err.message
                 });
             }
 
-            // If the user swiped no, we are done
-            if (decision === 'no') {
-                return res.json({
-                    message: 'Swipe recorded',
-                    swipe: decision
+            const matches = results[0];
+
+            if (!matches || matches.length === 0) {
+                return res.json({ matches: [] });
+            }
+
+            let completed = 0;
+            const matchList = [];
+
+            matches.forEach((match) => {
+                const otherUserId =
+                    match.user1_id === userId ? match.user2_id : match.user1_id;
+
+                con.query('CALL get_user_profile(?)', [otherUserId], (err, profileResults) => {
+                    completed++;
+
+                    if (!err && profileResults[0] && profileResults[0][0]) {
+                        matchList.push({
+                            match_id: match.match_id,
+                            status: match.status,
+                            matched_at: match.matched_at,
+                            other_user: profileResults[0][0]
+                        });
+                    }
+
+                    if (completed === matches.length) {
+                        return res.json({ matches: matchList });
+                    }
+                });
+            });
+        });
+    });
+
+    // API endpoint to get messages for a match
+    app.get('/messages/:matchId', (req, res) => {
+        const matchId = parseInt(req.params.matchId);
+
+        if (!matchId) {
+            return res.status(400).json({ message: 'Missing matchId' });
+        }
+
+        con.query('CALL get_conversation_by_match(?)', [matchId], (err, conversationResults) => {
+            if (err) {
+                return res.status(500).json({
+                    message: 'Database error while getting conversation',
+                    error: err.message
                 });
             }
 
-            // If the user swiped yes, check if the other user also swiped yes
-            con.query(
-                'CALL check_mutual_like(?, ?)',
-                [userID, targetUserID],
-                (err, results) => {
-                    if (err) {
-                        return res.status(500).json({
-                            message: 'Database error while checking mutual like',
-                            error: err.message
-                        });
-                    }
+            if (!conversationResults[0] || conversationResults[0].length === 0) {
+                return res.status(404).json({ message: 'Conversation not found' });
+            }
 
-                    const mutualLikeCount = results[0][0].mutual_like_count;
+            const conversation = conversationResults[0][0];
+            const conversationId = conversation.conversation_id;
 
-                    // If there is no mutual like yet, just record the swipe
-                    if (mutualLikeCount === 0) {
-                        return res.json({
-                            message: 'Swipe recorded, no match yet',
-                            swipe: decision
-                        });
-                    }
-
-                    // If both users liked each other, create a match
-                    con.query(
-                        'CALL create_match(?, ?)',
-                        [userID, targetUserID],
-                        (err, matchResults) => {
-                            if (err) {
-                                return res.status(500).json({
-                                    message: 'Database error while creating match',
-                                    error: err.message
-                                });
-                            }
-
-                            // Get the newly created match id
-                            const matchID = matchResults[0][0].match_id;
-
-                            // Create a conversation for the new match
-                            con.query(
-                                'CALL create_conversation(?)',
-                                [matchID],
-                                (err) => {
-                                    if (err) {
-                                        return res.status(500).json({
-                                            message: 'Database error while creating conversation',
-                                            error: err.message
-                                        });
-                                    }
-
-                                    return res.json({
-                                        message: 'Swipe recorded and match created',
-                                        matched: true,
-                                        matchID: matchID
-                                    });
-                                }
-                            );
-                        }
-                    );
+            con.query('CALL get_conversation_messages(?)', [conversationId], (err, messageResults) => {
+                if (err) {
+                    return res.status(500).json({
+                        message: 'Database error while getting messages',
+                        error: err.message
+                    });
                 }
-            );
+
+                return res.json({
+                    conversation: conversation,
+                    messages: messageResults[0]
+                });
+            });
+        });
+    });
+
+    // API endpoint to send a message
+    app.post('/sendMessage', (req, res) => {
+        const { conversationID, userID, body } = req.body;
+
+        if (!conversationID || !userID || !body) {
+            return res.status(400).json({
+                message: 'Send conversationID, userID, and body'
+            });
         }
-    );
-});
-}
+
+        con.query(
+            'CALL send_message(?, ?, ?)',
+            [conversationID, userID, body],
+            (err) => {
+                if (err) {
+                    return res.status(500).json({
+                        message: 'Database error while sending message',
+                        error: err.message
+                    });
+                }
+
+                return res.json({
+                    message: 'Message sent'
+                });
+            }
+        );
+    });
+
+};
