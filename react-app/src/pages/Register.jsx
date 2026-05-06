@@ -27,6 +27,16 @@ export default function Register({ onBack, onNext }) {
       const data = await res.json()
 
       if (res.status === 201) {
+        // Auto-login to get userId
+        const loginRes = await fetch(`${API}/login`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        })
+        const loginData = await loginRes.json()
+        if (loginRes.status === 200) {
+          localStorage.setItem('userId', loginData.userId)
+        }
         onNext()
       } else {
         setError(data.message || 'Registration failed.')

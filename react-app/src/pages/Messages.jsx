@@ -1,6 +1,6 @@
 // TODO: Replace with real API call when backend is ready
 const MOCK_CONVOS = [
-  { id: 1, name: 'Alex', age: 22, photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&q=80', lastMsg: 'Hey! Saw you like coffee too 😄', time: '2m', unread: 1, revealed: false },
+  { id: 1, name: 'Alex', age: 22, photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&q=80', lastMsg: 'Hey! Saw you like coffee too 😄', time: '2m', unread: 1 },
 ]
 
 export default function Messages({ navigate }) {
@@ -20,15 +20,13 @@ export default function Messages({ navigate }) {
                 background: 'var(--white)', borderRadius: 14, padding: '14px 16px',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.05)', textAlign: 'left', marginBottom: 8,
               }}>
-              <div style={{ position: 'relative', flexShrink: 0 }}>
-                <div style={{ width: 54, height: 54, borderRadius: '50%', overflow: 'hidden', filter: c.revealed ? 'none' : 'blur(6px)', background: '#ccc' }}>
-                  <img src={c.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                </div>
+              <div style={{ width: 54, height: 54, borderRadius: '50%', overflow: 'hidden', background: '#ccc', flexShrink: 0 }}>
+                <img src={c.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
               <div style={{ flex: 1, overflow: 'hidden' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
                   <span style={{ fontSize: 15, fontWeight: c.unread > 0 ? 700 : 600, color: 'var(--gray-800)' }}>
-                    {c.revealed ? `${c.name}, ${c.age}` : 'Anonymous Rowdy'}
+                    {c.name}, {c.age}
                   </span>
                   <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>{c.time}</span>
                 </div>

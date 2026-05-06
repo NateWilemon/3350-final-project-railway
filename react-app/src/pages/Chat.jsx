@@ -8,12 +8,8 @@ const INIT_MESSAGES = [
 export default function Chat({ match, navigate }) {
   const [messages, setMessages] = useState(INIT_MESSAGES)
   const [input, setInput] = useState('')
-  const [revealed, setRevealed] = useState(match?.revealed || false)
-  const [revealRequested, setRevealRequested] = useState(false)
   const [showReport, setShowReport] = useState(false)
   const bottomRef = useRef(null)
-
-  const displayName = revealed ? (match?.name || 'Alex') : 'Anonymous Rowdy'
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -21,17 +17,16 @@ export default function Chat({ match, navigate }) {
 
   const sendMsg = () => {
     if (!input.trim()) return
-    setMessages(m => [...m, { id: Date.now(), from: 'me', text: input.trim(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }])
+    setMessages(m => [...m, {
+      id: Date.now(), from: 'me', text: input.trim(),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }])
     setInput('')
-  }
-
-  const requestReveal = () => {
-    setRevealRequested(true)
-    setTimeout(() => setRevealed(true), 1500)
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--gray-100)' }}>
+      {/* Header */}
       <div style={{
         background: 'var(--blue)', padding: '12px 16px',
         display: 'flex', alignItems: 'center', gap: 12,
@@ -42,12 +37,12 @@ export default function Chat({ match, navigate }) {
             <path d="M19 12H5M12 5l-7 7 7 7"/>
           </svg>
         </button>
-        <div style={{ width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', filter: revealed ? 'none' : 'blur(5px)', background: '#8899bb', flexShrink: 0 }}>
+        <div style={{ width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', background: '#8899bb', flexShrink: 0 }}>
           {match?.photo && <img src={match.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
         </div>
         <div style={{ flex: 1 }}>
-          <p style={{ color: 'white', fontWeight: 700, fontSize: 16 }}>{displayName}</p>
-          {match?.major && revealed && <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>{match.major}</p>}
+          <p style={{ color: 'white', fontWeight: 700, fontSize: 16 }}>{match?.name || 'Match'}</p>
+          {match?.major && <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>{match.major}</p>}
         </div>
         <button onClick={() => setShowReport(true)} style={{ color: 'rgba(255,255,255,0.8)' }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -56,32 +51,14 @@ export default function Chat({ match, navigate }) {
         </button>
       </div>
 
-      {!revealed && (
-        <div style={{ background: 'var(--blue-light)', borderBottom: '1px solid var(--gray-200)', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--blue)' }}>🔒 Anonymous Chat</p>
-            <p style={{ fontSize: 12, color: 'var(--gray-600)' }}>Profiles hidden until both agree to reveal</p>
-          </div>
-          <button onClick={requestReveal} disabled={revealRequested}
-            style={{
-              padding: '8px 14px', borderRadius: 99, fontSize: 12, fontWeight: 700,
-              background: revealRequested ? 'var(--gray-200)' : 'var(--yellow)',
-              color: revealRequested ? 'var(--gray-400)' : 'var(--blue)',
-            }}>
-            {revealRequested ? 'Requested...' : 'Reveal 👀'}
-          </button>
-        </div>
-      )}
-
-      {revealed && (
-        <div style={{ background: '#f0fdf4', borderBottom: '1px solid #bbf7d0', padding: '10px 16px', textAlign: 'center' }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: '#16a34a' }}>🎉 Profiles Revealed! You matched with {match?.name}</p>
-        </div>
-      )}
-
+      {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
         {messages.map(msg => (
-          <div key={msg.id} style={{ display: 'flex', justifyContent: msg.from === 'me' ? 'flex-end' : 'flex-start', marginBottom: 10 }}>
+          <div key={msg.id} style={{
+            display: 'flex',
+            justifyContent: msg.from === 'me' ? 'flex-end' : 'flex-start',
+            marginBottom: 10,
+          }}>
             <div style={{
               maxWidth: '75%',
               background: msg.from === 'me' ? 'var(--blue)' : 'var(--white)',
@@ -99,12 +76,22 @@ export default function Chat({ match, navigate }) {
         <div ref={bottomRef} />
       </div>
 
-      <div style={{ padding: '10px 14px', background: 'var(--white)', borderTop: '1px solid var(--gray-200)', display: 'flex', alignItems: 'center', gap: 10 }}>
+      {/* Input */}
+      <div style={{
+        padding: '10px 14px', background: 'var(--white)',
+        borderTop: '1px solid var(--gray-200)',
+        display: 'flex', alignItems: 'center', gap: 10,
+      }}>
         <input
           value={input} onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && sendMsg()}
           placeholder="Type a message..."
-          style={{ flex: 1, padding: '11px 16px', border: '1.5px solid var(--gray-200)', borderRadius: 99, fontSize: 15, outline: 'none', background: 'var(--gray-100)' }}
+          style={{
+            flex: 1, padding: '11px 16px',
+            border: '1.5px solid var(--gray-200)',
+            borderRadius: 99, fontSize: 15, outline: 'none',
+            background: 'var(--gray-100)',
+          }}
         />
         <button onClick={sendMsg} disabled={!input.trim()}
           style={{
