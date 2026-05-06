@@ -42,11 +42,17 @@ BEGIN
     VALUES (p_user_id, p_target_id, p_decision);
 END $$
 
--- This is going to create a match between two users.
 CREATE PROCEDURE create_match (
     IN p_user1_id INT,
     IN p_user2_id INT
 )
+BEGIN
+    INSERT INTO matches (user1_id, user2_id, status, matched_at)
+    VALUES (p_user1_id, p_user2_id, 'active', NOW());
+
+    SELECT LAST_INSERT_ID() AS match_id;
+END $$
+
 BEGIN
     INSERT INTO matches (user1_id, user2_id, status, matched_at)
     VALUES (p_user1_id, p_user2_id, 'active', NOW());
@@ -190,7 +196,7 @@ BEGIN
        OR user2_id = p_user_id;
 END $$
 
---If both users swipe on eachother this will return a 1, if not it will return a 0. 
+-- Checks if two users have both swiped yes on each other.
 CREATE PROCEDURE check_mutual_like (
     IN p_user_id INT,
     IN p_target_id INT
@@ -201,10 +207,10 @@ BEGIN
     JOIN swipes s2
         ON s1.user_id = p_user_id
        AND s1.target_id = p_target_id
-       AND s1.decision = 'like'
+       AND s1.decision = 'yes'
        AND s2.user_id = p_target_id
        AND s2.target_id = p_user_id
-       AND s2.decision = 'like';
+       AND s2.decision = 'yes';
 END $$
 
 -- This will given a match id get the conversation id .

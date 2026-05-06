@@ -130,26 +130,106 @@ module.exports = function startMatchmaking(app, con) {
         });
     });
 
-    //API endpoint to swipe yes or no
-    //decision is string, 'yes' or 'no'
-    app.post('/swipe', async (req, res) => {
-        console.log(req.body);
-        const { userID, targetPID, decision } = req.body;
-        if (!userID || !targetPID || !decision) {
-            return res.status(400).json({ message: "Send userID, targetPID, and decision as 'yes' or 'no' string" });
-        }
-        if (decision !== 'yes' && decision !== 'no') {
-            return res.status(400).json({ message: "Decision must be 'yes' or 'no' string" });
-        }
+    // API endpoint to swipe yes or no
+// decision is a string: "yes" or "no"
+app.post('/swipe', async (req, res) => {
+    console.log(req.body);
 
-        //converts userId to PID
-        con.query('CALL get_user_profile(?)', [userID], (err, result) => {
-            if (err) return res.json({ message: 'Database error', error: err.message });
-            let userPID = result[0][0].profile_id;
-            con.query('CALL record_swipe(?,?,?)', [userPID, targetPID, decision], (err) => {
-                if (err) return res.json({ message: 'Database error', error: err.message });
-                return res.json({ message: 'Added swipe as ', swipe: decision });
-            });
+    const { userID, targetUserID, decision } = req.body;
+
+    if (!userID || !targetUserID || !decision) {
+        return res.status(400).json({
+            message: "Send userID, targetUserID, and decision as 'yes' or 'no' string"
         });
-    });
+    }
+
+    if (decision !== 'yes' && decision !== 'no') {
+        return res.status(400).json({
+            message: "Decision must be 'yes' or 'no' string"
+        });
+    }
+
+    // First, record the swipe
+    con.query(
+        'CALL record_swipe(?, ?, ?)',
+        [userID, targetUserID, decision],
+        (err) => {
+            if (err) {
+                return res.status(500).json({
+                    message: 'Database error while recording swipe',
+                    error: err.message
+                });
+            }
+
+            // If the user swiped no, we are done
+            if (decision === 'no') {
+                return res.json({
+                    message: 'Swipe recorded',
+                    swipe: decision
+                });
+            }
+
+            // If the user swiped yes, check if the other user also swiped yes
+            con.query(
+                'CALL check_mutual_like(?, ?)',
+                [userID, targetUserID],
+                (err, results) => {
+                    if (err) {
+                        return res.status(500).json({
+                            message: 'Database error while checking mutual like',
+                            error: err.message
+                        });
+                    }
+
+                    const mutualLikeCount = results[0][0].mutual_like_count;
+
+                    // If there is no mutual like yet, just record the swipe
+                    if (mutualLikeCount === 0) {
+                        return res.json({
+                            message: 'Swipe recorded, no match yet',
+                            swipe: decision
+                        });
+                    }
+
+                    // If both users liked each other, create a match
+                    con.query(
+                        'CALL create_match(?, ?)',
+                        [userID, targetUserID],
+                        (err, matchResults) => {
+                            if (err) {
+                                return res.status(500).json({
+                                    message: 'Database error while creating match',
+                                    error: err.message
+                                });
+                            }
+
+                            // Get the newly created match id
+                            const matchID = matchResults[0][0].match_id;
+
+                            // Create a conversation for the new match
+                            con.query(
+                                'CALL create_conversation(?)',
+                                [matchID],
+                                (err) => {
+                                    if (err) {
+                                        return res.status(500).json({
+                                            message: 'Database error while creating conversation',
+                                            error: err.message
+                                        });
+                                    }
+
+                                    return res.json({
+                                        message: 'Swipe recorded and match created',
+                                        matched: true,
+                                        matchID: matchID
+                                    });
+                                }
+                            );
+                        }
+                    );
+                }
+            );
+        }
+    );
+});
 }

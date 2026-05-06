@@ -36,11 +36,11 @@ VALUES
 
 INSERT INTO swipes (user_id, target_id, decision)
 VALUES
-(1, 2, 'like'),
-(2, 1, 'like'), -- mutual like between user with id 1 and user with id 2
-(1, 3, 'pass'),
-(3, 1, 'like'),
-(4, 2, 'like');
+(1, 2, 'yes'),
+(2, 1, 'yes'), -- mutual like between user with id 1 and user with id 2
+(1, 3, 'no'),
+(3, 1, 'yes'),
+(4, 2, 'yes');
 
 INSERT INTO matches (user1_id, user2_id, status, matched_at)
 VALUES
