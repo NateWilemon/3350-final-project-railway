@@ -50,18 +50,18 @@ module.exports = function startUser(app, con) {
         con.query('SELECT * FROM users WHERE email = ?', [email], async (err, rows) => {
             if (err) {
                 console.log(err);
-                return res.json({ message: 'Database error' });
+                return res.status(401).json({ message: 'Database error' });
             }
 
             if (rows.length == 0) {
-                return res.json({ message: 'Invalid email or password' });
+                return res.status(401).json({ message: 'Invalid email or password' });
             }
 
             const user = rows[0];
             const match = await bcrypt.compare(password, user.password_hashed);
 
             if (!match) {
-                return res.json({ message: 'Invalid email or password' });
+                return res.status(401).json({ message: 'Invalid email or password' });
             }
 
             return res.status(200).json({ message: 'Login successful', userId: user.user_id });

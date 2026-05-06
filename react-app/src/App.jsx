@@ -19,7 +19,7 @@ export default function App() {
   }
 
   if (page === 'login')
-    return <Login onLogin={() => navigate('discover')} onRegister={() => navigate('register')} />
+    return <Login onLogin={(userId) => navigate('discover')} onRegister={() => navigate('register')} />
   if (page === 'register')
     return <Register onBack={() => navigate('login')} onNext={() => navigate('create-profile')} />
   if (page === 'create-profile')
