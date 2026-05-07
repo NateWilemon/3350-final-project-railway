@@ -1,35 +1,74 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
-// TODO: Replace with real API call when backend is ready
-const MOCK_PROFILES = [
-  {
-    id: 1,
-    name: 'Alex', age: 22,
-    major: 'Business Administration', year: 'Senior',
-    distance: '0.5 miles away',
-    bio: 'Entrepreneur at heart, fitness enthusiast, and coffee connoisseur. Let\'s grab a drink at the campus café!',
-    hobbies: ['Business', 'Fitness', 'Travel', 'Cooking', 'Basketball'],
-    photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=600&q=80',
-  },
-]
+const API = 'http://localhost:3001'
 
 export default function Discover({ navigate }) {
+  const [queue, setQueue] = useState([])
   const [index, setIndex] = useState(0)
   const [swipeAnim, setSwipeAnim] = useState(null)
   const [showMatch, setShowMatch] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  const profile = MOCK_PROFILES[index]
+  useEffect(() => {
+    const userId = localStorage.getItem('userId')
+    if (!userId) return
 
-  const swipe = (dir) => {
+    fetch(`${API}/getQueue`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ userID: parseInt(userId) }),
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.queue) setQueue(data.queue)
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [])
+
+  const profile = queue[index]
+
+  const swipe = async (dir) => {
+    const userId = localStorage.getItem('userId')
     setSwipeAnim(dir)
-    setTimeout(() => {
-      setSwipeAnim(null)
-      if (dir === 'right' && Math.random() > 0.4) {
-        setShowMatch(true)
-        return
-      }
-      setIndex(i => i + 1)
-    }, 350)
+
+    try {
+      const res = await fetch(`${API}/swipe`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          userID: parseInt(userId),
+          targetUserID: profile.id,
+          decision: dir === 'right' ? 'yes' : 'no',
+        }),
+      })
+      const data = await res.json()
+
+      setTimeout(() => {
+        setSwipeAnim(null)
+        if (data.matched) {
+          setShowMatch(true)
+        } else {
+          setIndex(i => i + 1)
+        }
+      }, 350)
+    } catch (err) {
+      setTimeout(() => {
+        setSwipeAnim(null)
+        setIndex(i => i + 1)
+      }, 350)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div>
+        <Header />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '80px 24px' }}>
+          <p style={{ color: 'var(--gray-400)' }}>Finding matches...</p>
+        </div>
+      </div>
+    )
   }
 
   if (showMatch) {
@@ -77,12 +116,16 @@ export default function Discover({ navigate }) {
           opacity: swipeAnim ? 0 : 1,
           transition: swipeAnim ? 'transform 0.35s ease, opacity 0.35s' : 'none',
         }}>
-          <img
-            src={profile.photo}
-            alt={profile.name}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-            onError={e => { e.target.style.display = 'none' }}
-          />
+          {profile.profile_picture ? (
+            <img src={profile.profile_picture} alt={profile.name}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          ) : (
+            <div style={{ width: '100%', height: '100%', background: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: 80, fontWeight: 800, color: 'var(--yellow)' }}>
+                {profile.name?.charAt(0) || '?'}
+              </span>
+            </div>
+          )}
 
           <div style={{
             position: 'absolute', bottom: 0, left: 0, right: 0,
@@ -92,56 +135,48 @@ export default function Discover({ navigate }) {
             <h2 style={{ color: '#fff', fontSize: 28, fontWeight: 800, marginBottom: 4 }}>
               {profile.name}, {profile.age}
             </h2>
-            <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 15, fontWeight: 500, marginBottom: 6 }}>
-              {profile.major} • {profile.year}
+            <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 15, fontWeight: 500, marginBottom: 10 }}>
+              {profile.major}
             </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="2.5">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
-              </svg>
-              <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13 }}>{profile.distance}</span>
-            </div>
-            <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
-              {profile.bio}
-            </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-              {profile.hobbies.map(h => (
-                <span key={h} style={{
-                  background: 'rgba(255,255,255,0.18)',
-                  backdropFilter: 'blur(4px)',
-                  border: '1px solid rgba(255,255,255,0.3)',
-                  color: '#fff', fontSize: 12, fontWeight: 600,
-                  padding: '5px 12px', borderRadius: 99,
-                }}>
-                  {h}
-                </span>
-              ))}
-            </div>
+            {profile.bio && (
+              <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
+                {profile.bio}
+              </p>
+            )}
+            {profile.hobbies && profile.hobbies.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                {profile.hobbies.map(h => (
+                  <span key={h} style={{
+                    background: 'rgba(255,255,255,0.18)',
+                    backdropFilter: 'blur(4px)',
+                    border: '1px solid rgba(255,255,255,0.3)',
+                    color: '#fff', fontSize: 12, fontWeight: 600,
+                    padding: '5px 12px', borderRadius: 99,
+                  }}>
+                    {h}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Action Buttons */}
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 24, padding: '24px 0 8px' }}>
-          <button
-            onClick={() => swipe('left')}
-            style={{
-              width: 64, height: 64, borderRadius: '50%',
-              background: 'var(--white)',
-              boxShadow: '0 3px 16px rgba(0,0,0,0.12)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
+          <button onClick={() => swipe('left')} style={{
+            width: 64, height: 64, borderRadius: '50%',
+            background: 'var(--white)', boxShadow: '0 3px 16px rgba(0,0,0,0.12)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#e63946" strokeWidth="2.5" strokeLinecap="round">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
           </button>
-          <button
-            onClick={() => swipe('right')}
-            style={{
-              width: 76, height: 76, borderRadius: '50%',
-              background: 'var(--yellow)',
-              boxShadow: '0 4px 20px rgba(255,199,44,0.5)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
+          <button onClick={() => swipe('right')} style={{
+            width: 76, height: 76, borderRadius: '50%',
+            background: 'var(--yellow)', boxShadow: '0 4px 20px rgba(255,199,44,0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
             <svg width="34" height="34" viewBox="0 0 24 24" fill="var(--blue)" stroke="none">
               <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
             </svg>
@@ -160,12 +195,9 @@ function Header() {
   return (
     <div style={{
       background: 'var(--blue)', height: 'var(--header-height)',
-      display: 'flex', alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '0 20px',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px',
     }}>
       <span style={{ color: 'var(--white)', fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>Rowdy</span>
-      
     </div>
   )
 }
@@ -183,22 +215,21 @@ function MatchModal({ profile, onMessage, onKeepSwiping }) {
       <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 16, marginBottom: 32 }}>
         You and {profile?.name} both liked each other
       </p>
-      <div style={{ width: 100, height: 100, borderRadius: '50%', overflow: 'hidden', marginBottom: 32, border: '4px solid var(--yellow)' }}>
-        <img src={profile?.photo} alt={profile?.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      <div style={{ width: 100, height: 100, borderRadius: '50%', overflow: 'hidden', marginBottom: 32, border: '4px solid var(--yellow)', background: 'var(--blue-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {profile?.profile_picture
+          ? <img src={profile.profile_picture} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : <span style={{ fontSize: 40, fontWeight: 800, color: 'var(--yellow)' }}>{profile?.name?.charAt(0)}</span>
+        }
       </div>
       <button onClick={onMessage} style={{
         width: '100%', padding: 16, background: 'var(--yellow)', color: 'var(--blue)',
         borderRadius: 14, fontSize: 17, fontWeight: 800, marginBottom: 14,
-      }}>
-        Send a Message
-      </button>
+      }}>Send a Message</button>
       <button onClick={onKeepSwiping} style={{
         width: '100%', padding: 16, background: 'rgba(255,255,255,0.15)',
         color: 'var(--white)', borderRadius: 14, fontSize: 17, fontWeight: 700,
         border: '2px solid rgba(255,255,255,0.3)',
-      }}>
-        Keep Swiping
-      </button>
+      }}>Keep Swiping</button>
     </div>
   )
 }

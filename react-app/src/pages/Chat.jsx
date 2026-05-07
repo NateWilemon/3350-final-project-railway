@@ -1,27 +1,59 @@
 import { useState, useRef, useEffect } from 'react'
 
-// TODO: Replace with real API call when backend is ready
-const INIT_MESSAGES = [
-  { id: 1, from: 'them', text: 'Hey! Saw you like coffee too 😄', time: '2:30 PM' },
-]
+const API = 'http://localhost:3001'
 
 export default function Chat({ match, navigate }) {
-  const [messages, setMessages] = useState(INIT_MESSAGES)
+  const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [showReport, setShowReport] = useState(false)
+  const [conversationId, setConversationId] = useState(null)
   const bottomRef = useRef(null)
+
+  const userId = parseInt(localStorage.getItem('userId'))
+
+  useEffect(() => {
+    if (!match?.matchId) return
+
+    fetch(`${API}/messages/${match.matchId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.conversation) setConversationId(data.conversation.conversation_id)
+        if (data.messages) setMessages(data.messages)
+      })
+      .catch(err => console.error(err))
+  }, [match])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const sendMsg = () => {
-    if (!input.trim()) return
-    setMessages(m => [...m, {
-      id: Date.now(), from: 'me', text: input.trim(),
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }])
+  const sendMsg = async () => {
+    if (!input.trim() || !conversationId) return
+
+    const text = input.trim()
     setInput('')
+
+    try {
+      await fetch(`${API}/sendMessage`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          conversationID: conversationId,
+          userID: userId,
+          body: text,
+        }),
+      })
+
+      // Add message locally
+      setMessages(m => [...m, {
+        message_id: Date.now(),
+        user_id: userId,
+        body: text,
+        sent_at: new Date().toISOString(),
+      }])
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   return (
@@ -37,8 +69,11 @@ export default function Chat({ match, navigate }) {
             <path d="M19 12H5M12 5l-7 7 7 7"/>
           </svg>
         </button>
-        <div style={{ width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', background: '#8899bb', flexShrink: 0 }}>
-          {match?.photo && <img src={match.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+        <div style={{ width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', background: 'var(--blue-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          {match?.profile_picture
+            ? <img src={match.profile_picture} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--yellow)' }}>{match?.name?.charAt(0)}</span>
+          }
         </div>
         <div style={{ flex: 1 }}>
           <p style={{ color: 'white', fontWeight: 700, fontSize: 16 }}>{match?.name || 'Match'}</p>
@@ -53,26 +88,36 @@ export default function Chat({ match, navigate }) {
 
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-        {messages.map(msg => (
-          <div key={msg.id} style={{
-            display: 'flex',
-            justifyContent: msg.from === 'me' ? 'flex-end' : 'flex-start',
-            marginBottom: 10,
-          }}>
-            <div style={{
-              maxWidth: '75%',
-              background: msg.from === 'me' ? 'var(--blue)' : 'var(--white)',
-              color: msg.from === 'me' ? 'white' : 'var(--gray-800)',
-              padding: '10px 14px',
-              borderRadius: msg.from === 'me' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-              fontSize: 15, lineHeight: 1.4,
-            }}>
-              {msg.text}
-              <p style={{ fontSize: 10, marginTop: 4, opacity: 0.6, textAlign: 'right' }}>{msg.time}</p>
-            </div>
+        {messages.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--gray-400)', fontSize: 14 }}>
+            Say hi to {match?.name}! 👋
           </div>
-        ))}
+        )}
+        {messages.map(msg => {
+          const isMe = msg.user_id === userId
+          return (
+            <div key={msg.message_id} style={{
+              display: 'flex',
+              justifyContent: isMe ? 'flex-end' : 'flex-start',
+              marginBottom: 10,
+            }}>
+              <div style={{
+                maxWidth: '75%',
+                background: isMe ? 'var(--blue)' : 'var(--white)',
+                color: isMe ? 'white' : 'var(--gray-800)',
+                padding: '10px 14px',
+                borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+                fontSize: 15, lineHeight: 1.4,
+              }}>
+                {msg.body}
+                <p style={{ fontSize: 10, marginTop: 4, opacity: 0.6, textAlign: 'right' }}>
+                  {new Date(msg.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+            </div>
+          )
+        })}
         <div ref={bottomRef} />
       </div>
 

@@ -11,6 +11,11 @@ export default function Profile({ navigate }) {
   const [editing, setEditing] = useState(false)
   const [edit, setEdit] = useState({})
 
+  const handleLogout = () => {
+    localStorage.removeItem('userId')
+    navigate('login')
+  }
+
   useEffect(() => {
     const userId = localStorage.getItem('userId')
     if (!userId) return
@@ -67,7 +72,7 @@ export default function Profile({ navigate }) {
       </div>
 
       {!editing ? (
-        <ViewMode profile={profile} onEdit={() => setEditing(true)} />
+        <ViewMode profile={profile} onEdit={() => setEditing(true)} onLogout={handleLogout} />
       ) : (
         <EditMode edit={edit} setEdit={setEdit} onSave={() => { setProfile(edit); setEditing(false) }} onCancel={() => setEditing(false)} />
       )}
@@ -75,7 +80,7 @@ export default function Profile({ navigate }) {
   )
 }
 
-function ViewMode({ profile, onEdit }) {
+function ViewMode({ profile, onEdit, onLogout }) {
   const [showSettings, setShowSettings] = useState(false)
 
   return (
@@ -126,7 +131,7 @@ function ViewMode({ profile, onEdit }) {
         </button>
       </div>
 
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onLogout={onLogout} />}
     </div>
   )
 }
@@ -154,29 +159,18 @@ function EditMode({ edit, setEdit, onSave, onCancel }) {
   )
 }
 
-function SettingsModal({ onClose }) {
+function SettingsModal({ onClose, onLogout }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', zIndex: 200 }} onClick={onClose}>
       <div style={{ background: 'white', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%' }} onClick={e => e.stopPropagation()}>
         <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--blue)', marginBottom: 20 }}>Settings</h3>
-        {[
-          { label: '🔔 Notifications', sub: 'Manage alerts' },
-          { label: '🔒 Privacy', sub: 'Control your data' },
-          { label: '❓ Help & Support', sub: 'FAQ and contact' },
-          { label: '🚪 Log Out', sub: '', danger: true },
-        ].map(item => (
-          <button key={item.label} style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            width: '100%', padding: '14px 0', borderBottom: '1px solid var(--gray-200)',
-            color: item.danger ? 'var(--red)' : 'var(--gray-800)', textAlign: 'left',
-          }}>
-            <div>
-              <p style={{ fontSize: 15, fontWeight: 600 }}>{item.label}</p>
-              {item.sub && <p style={{ fontSize: 13, color: 'var(--gray-400)' }}>{item.sub}</p>}
-            </div>
-            {!item.danger && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>}
-          </button>
-        ))}
+        <button onClick={onLogout} style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          width: '100%', padding: '14px 0', borderBottom: '1px solid var(--gray-200)',
+          color: 'var(--red)', textAlign: 'left',
+        }}>
+          <p style={{ fontSize: 15, fontWeight: 600 }}>🚪 Log Out</p>
+        </button>
         <button onClick={onClose} style={{ width: '100%', marginTop: 16, padding: 13, background: 'var(--gray-100)', borderRadius: 12, fontWeight: 600, color: 'var(--gray-600)' }}>Close</button>
       </div>
     </div>

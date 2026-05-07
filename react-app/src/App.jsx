@@ -15,11 +15,12 @@ export default function App() {
 
   const navigate = (p, data = null) => {
     if (p === 'chat') setActiveChat(data)
+    if (p === 'login') { setPage('login'); return }
     setPage(p)
   }
 
   if (page === 'login')
-    return <Login onLogin={(userId) => navigate('discover')} onRegister={() => navigate('register')} />
+    return <Login onLogin={() => navigate('discover')} onRegister={() => navigate('register')} />
   if (page === 'register')
     return <Register onBack={() => navigate('login')} onNext={() => navigate('create-profile')} />
   if (page === 'create-profile')
