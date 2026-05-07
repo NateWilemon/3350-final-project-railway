@@ -94,19 +94,18 @@ module.exports = function startMatchmaking(app, con) {
                                             let mainAge = _calculateAge(new Date(user.birthdate));
                                             let matAge = _calculateAge(new Date(mat.birthdate));
                                             let ageDiff = Math.abs(mainAge - matAge);
-                                            ageWeight = 1 - ageDiff / 10;
-                                            if (ageWeight < 0)
-                                                ageWeight = 0;
+                                            const k = 0.15; //exponential decay rate
+                                            ageWeight = Math.exp(-k * ageDiff);
 
                                             //final answer
                                             let answer = (majorWeight + hobbyWeight + ageWeight) / 3;
                                             console.log(answer);
+
                                             matchQueue.push({
                                                 id: mat.user_id,
                                                 score: answer,
                                                 profile_id: mat.profile_id,
-                                                first_name: mat.first_name,
-                                                last_name: mat.last_name,
+                                                name: mat.name,
                                                 birthdate: mat.birthdate,
                                                 age: _calculateAge(new Date(mat.birthdate)),
                                                 major: mat.major,
@@ -130,7 +129,7 @@ module.exports = function startMatchmaking(app, con) {
         });
     });
 
-   // API endpoint to swipe yes or no
+    // API endpoint to swipe yes or no
     app.post('/swipe', async (req, res) => {
         console.log(req.body);
 
@@ -229,7 +228,7 @@ module.exports = function startMatchmaking(app, con) {
     });
 
 
-  // API endpoint to get matches for a user
+    // API endpoint to get matches for a user
     app.get('/matches/:userId', (req, res) => {
         const userId = parseInt(req.params.userId);
 
