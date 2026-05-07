@@ -10,12 +10,21 @@ import Profile from './pages/Profile'
 import './index.css'
 
 export default function App() {
-  const [page, setPage] = useState('login')
+  const [page, setPage] = useState(() => {
+    const userId = localStorage.getItem('userId')
+    if (!userId) return 'login'
+    return localStorage.getItem('currentPage') || 'discover'
+  })
   const [activeChat, setActiveChat] = useState(null)
 
   const navigate = (p, data = null) => {
     if (p === 'chat') setActiveChat(data)
-    if (p === 'login') { setPage('login'); return }
+    if (p === 'login') {
+      localStorage.removeItem('currentPage')
+      setPage('login')
+      return
+    }
+    localStorage.setItem('currentPage', p)
     setPage(p)
   }
 

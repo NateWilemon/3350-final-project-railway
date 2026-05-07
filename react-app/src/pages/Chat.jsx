@@ -57,7 +57,7 @@ export default function Chat({ match, navigate }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--gray-100)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--gray-100)', paddingBottom: 'var(--nav-height)' }}>
       {/* Header */}
       <div style={{
         background: 'var(--blue)', padding: '12px 16px',
@@ -126,6 +126,8 @@ export default function Chat({ match, navigate }) {
         padding: '10px 14px', background: 'var(--white)',
         borderTop: '1px solid var(--gray-200)',
         display: 'flex', alignItems: 'center', gap: 10,
+        position: 'fixed', bottom: 'var(--nav-height)', left: 0, right: 0,
+        zIndex: 50,
       }}>
         <input
           value={input} onChange={e => setInput(e.target.value)}

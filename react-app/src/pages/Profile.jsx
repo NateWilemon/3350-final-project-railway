@@ -2,6 +2,15 @@ import { useState, useEffect } from 'react'
 
 const API = 'http://localhost:3001'
 
+function calculateAge(birthdate) {
+  const today = new Date()
+  const birth = new Date(birthdate)
+  let age = today.getFullYear() - birth.getFullYear()
+  const m = today.getMonth() - birth.getMonth()
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--
+  return age
+}
+
 const HOBBIES = ['Gaming', 'Travel', 'Fitness', 'Cooking', 'Reading', 'Music', 'Art', 'Basketball', 'Soccer', 'Hiking', 'Photography', 'Dancing', 'Chess', 'Coding', 'Volunteering', 'Movies', 'Yoga', 'Baking']
 const MAJORS = ['Computer Science', 'Business Administration', 'Biology', 'Psychology', 'Engineering', 'Nursing', 'Math', 'History', 'English', 'Criminal Justice', 'Education', 'Kinesiology', 'Other']
 
@@ -99,7 +108,7 @@ function ViewMode({ profile, onEdit, onLogout }) {
         </div>
         <div style={{ padding: '44px 20px 20px' }}>
           <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--gray-800)' }}>
-            {profile.name}{profile.birthdate ? `, ${new Date().getFullYear() - new Date(profile.birthdate).getFullYear()}` : ''}
+            {profile.name}{profile.birthdate ? `, ${calculateAge(profile.birthdate)}` : ''}
           </h2>
           <p style={{ color: 'var(--gray-600)', fontSize: 14, marginBottom: 4 }}>{profile.major} • {profile.gender}</p>
           <p style={{ color: 'var(--gray-400)', fontSize: 13 }}>Looking for: {profile.looking_for}</p>
