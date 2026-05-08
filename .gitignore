@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 
 .env
+
+#ignore user uploaded photos
+server/photos/*

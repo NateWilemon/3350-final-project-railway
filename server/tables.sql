@@ -116,6 +116,7 @@ CREATE TABLE profile_photos (
     is_primary BOOLEAN DEFAULT FALSE,
     is_approved BOOLEAN DEFAULT FALSE,
     profile_id INT,
+    file_path VARCHAR(255),
 
     FOREIGN KEY (profile_id) REFERENCES profiles(profile_id)
 );

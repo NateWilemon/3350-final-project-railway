@@ -3,6 +3,10 @@ const mysql = require('mysql2');
 const dotenv = require('dotenv');
 dotenv.config();
 const fs = require('fs');
+const multer = require('multer')
+const upload = multer({ dest: path.join(__dirname, 'photos/') })
+const path = require('path');
+
 
 //exports calls to index and connects to DB from index
 module.exports = function startUser(app, con) {
@@ -178,6 +182,197 @@ module.exports = function startUser(app, con) {
         });
     });
 
+
+    //api endpoint for reporting users
+    app.post('/reportUser', async (req, res) => {
+        //ID of user reporting
+        //reasons is like category of report ex: fake CSUB account, harrasement, ect.
+        //details is user text of what they did
+        const { userID, conversationID, reasons, details, messageID } = req.body;
+        if (!userID || !conversationID || !reasons || !messageID)
+            return res.status(400).json({ message: 'Missing required fields' });
+
+        con.query('SELECT * FROM users WHERE user_id = ?', [userID], async (err, rows) => {
+            if (err) {
+                console.log(err);
+                return res.status(500).json({ message: 'Database error' });
+            }
+
+            if (rows.length == 0) {
+                return res.status(401).json({ message: 'Invalid userID' });
+            }
+            //id of reported user
+            let reportUserId;
+            con.query('SELECT user1_id, user2_id FROM conversations JOIN matches ON conversations.match_id = matches.match_id WHERE conversation_id = ?',
+                [conversationID], async (err, rows) => {
+                    if (err) {
+                        console.log(err);
+                        return res.status(500).json({ message: 'Database error' });
+                    }
+
+                    if (rows.length == 0) {
+                        return res.status(401).json({ message: 'Invalid conversation ID' });
+                    }
+                    const user1 = rows[0].user1_id;
+                    const user2 = rows[0].user2_id;
+                    if (userID == user1)
+                        reportUserId = user2
+                    else
+                        reportUserId = user1
+
+                    //add new report column
+                    con.query('CALL create_report(?, ?, ?, ?)', [reportUserId, conversationID, reasons, details], (err, result) => {
+                        if (err)
+                            return res.json({ message: 'Database error' });
+                        //get id of user reported
+                        con.query('SELECT MAX(report_id) AS reportID FROM reports WHERE user_id = ? AND conversation_id = ?',
+                            [reportUserId, conversationID], (err, rows) => {
+                                if (err)
+                                    return res.status(500).json({ message: 'Database error' });
+
+                                let reportID = rows[0].reportID;
+
+                                //insert report into messages
+                                con.query('UPDATE messages SET report_id = ? WHERE message_id = ?', [reportID, messageID], (err) => {
+                                    if (err)
+                                        return res.json({ message: 'Database error' });
+                                    return res.status(201).json({ message: 'Report successfully added' });
+                                });
+                            })
+                    });
+                });
+        });
+    });
+
+
+    //need to send as multipart fourm instead of json
+    //includes userID, pfp as 1 or 0 for yes pfp or no pfp
+    //and photo as photo
+    app.post('/addpicture', upload.single('photo'), function (req, res, next) {
+        //pfp should be a 1 or 0. 1 for pfp 0 for not.
+        //if you already have a pfp passing 1 replaces it
+        //this table can support multiple photos
+        const { userID, pfp } = req.body;
+        if (pfp != 0 && pfp != 1)
+            return res.status(400).json({ message: 'pfp must be a 1 or 0' });
+        if (!userID || !req.file) {
+            return res.status(400).json({ message: 'Missing required fields' });
+        }
+        con.query('SELECT * FROM users WHERE user_id = ?', [userID], (err, rows) => {
+            if (err)
+                return res.json({ message: 'Database error' });
+            if (rows.length == 0)
+                return res.json({ message: 'User not found' });
+
+            //get profileID
+            con.query("CALL get_user_profile(?)", [userID], (err, results) => {
+                if (err)
+                    return res.status(500).json({ message: 'Database error' });
+                let profileID = results[0][0].profile_id;
+                let filePath = req.file.path;
+
+                if (pfp == 1) {
+                    //if new pfp remove old one
+                    con.query('UPDATE profile_photos SET is_primary = 0 WHERE profile_id = ?', [profileID], (err) => {
+                        if (err)
+                            return res.status(500).json({ message: 'Database error' });
+
+                        con.query('INSERT INTO profile_photos (position, is_primary, is_approved, profile_id, file_path)' +
+                            'VALUES(?,?,0,?,?)', [null, pfp, profileID, filePath], (err) => {
+                                if (err) return res.status(500).json({ message: 'Database error' });
+                                return res.status(201).json({ message: 'Photo uploaded!' });
+                            });
+                    });
+                } else {
+                    //grab photo position
+                    con.query('SELECT COALESCE(MAX(position), 0) AS maxPos FROM profile_photos WHERE profile_id = ? AND is_primary = 0',
+                        [profileID], (err, rows) => {
+                            if (err)
+                                return res.status(500).json({ message: 'Database error' });
+                            let position = rows[0].maxPos + 1;
+
+                            con.query('INSERT INTO profile_photos (position, is_primary, is_approved, profile_id, file_path)' +
+                                'VALUES(?,?,0,?,?)', [position, pfp, profileID, filePath], (err) => {
+                                    if (err) return res.status(500).json({ message: 'Database error' });
+                                    return res.status(201).json({ message: 'Photo uploaded!' });
+                                });
+                        });
+                }
+            });
+        });
+    });
+
+    //api endpoint to get pfp for a user
+    app.post('/getPFP', async (req, res) => {
+        const { userID } = req.body;
+        if (!userID) {
+            return res.status(400).json({ message: 'Missing required fields' });
+        }
+        con.query('SELECT * FROM users WHERE user_id = ?', [userID], (err, rows) => {
+            if (err)
+                return res.json({ message: 'Database error' });
+            if (rows.length == 0)
+                return res.json({ message: 'User not found' });
+
+            //get profile id from userID
+            con.query("CALL get_user_profile(?)", [userID], (err, results) => {
+                if (err)
+                    return res.status(500).json({ message: 'Database error' });
+                let profileID = results[0][0].profile_id;
+
+                con.query("SELECT file_path FROM profile_photos WHERE profile_id = ? AND is_primary = 1", [profileID], (err, rows) => {
+                    if (err)
+                        return res.status(500).json({ message: 'Database error' });
+                    if (rows.length == 0)
+                        return res.status(404).json({ message: 'No PFP found' });
+
+                    res.sendFile(path.resolve(rows[0].file_path));
+                });
+            });
+        });
+    });
+
+    //api endpoint to get all photos for a user
+    app.post('/getPhotos', async (req, res) => {
+        const { userID } = req.body;
+        if (!userID) {
+            return res.status(400).json({ message: 'Missing required fields' });
+        }
+        con.query('SELECT * FROM users WHERE user_id = ?', [userID], (err, rows) => {
+            if (err)
+                return res.json({ message: 'Database error' });
+            if (rows.length == 0)
+                return res.json({ message: 'User not found' });
+
+            //get profile id from userID
+            con.query("CALL get_user_profile(?)", [userID], (err, results) => {
+                if (err)
+                    return res.status(500).json({ message: 'Database error' });
+                let profileID = results[0][0].profile_id;
+
+                con.query("CALL get_profile_photos(?)", [profileID], (err, results) => {
+                    if (err)
+                        return res.status(500).json({ message: 'Database error' });
+                    const photos = results[0].map(photo => ({
+                        ...photo,
+                        file_path: `http://localhost:3001/photo/${photo.photo_id}`
+                    }));
+                    return res.status(200).json({ photos });
+                });
+            });
+        });
+    });
+
+    //don't use as endpoint, use get photos
+    //this just assist with getphotos
+    app.get('/photo/:photoId', (req, res) => {
+        con.query('SELECT file_path FROM profile_photos WHERE photo_id = ?',
+            [req.params.photoId], (err, rows) => {
+                if (err) return res.status(500).json({ message: 'Database error' });
+                if (rows.length == 0) return res.status(404).json({ message: 'Photo not found' });
+                res.sendFile(rows[0].file_path, { root: '.' });
+            });
+    });
 
 
 };

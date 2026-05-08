@@ -285,9 +285,11 @@ BEGIN
         position,
         is_primary,
         is_approved,
-        profile_id
+        profile_id,
+        file_path
     FROM profile_photos
     WHERE profile_id = p_profile_id
+    AND is_primary = 0
     ORDER BY position ASC;
 END $$
 
