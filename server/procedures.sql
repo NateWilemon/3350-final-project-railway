@@ -90,17 +90,6 @@ BEGIN
     VALUES (p_user_id, p_conversation_id, p_reason, p_details, 'pending');
 END $$
 
--- This is the procedure for creating a reveal request.
-CREATE PROCEDURE create_reveal_request (
-    IN p_match_id INT,
-    IN p_user_id INT
-)
-BEGIN
-    INSERT INTO reveal_requests (match_id, user_id, requested_at)
-    VALUES (p_match_id, p_user_id, NOW());
-END $$
-
-
 -- Inserting hobbies into a profile.
 CREATE PROCEDURE add_profile_hobby (
     IN p_profile_id INT,
@@ -111,9 +100,6 @@ BEGIN
     VALUES (p_profile_id, p_hobby_id);
 END $$
 
---This procedure is meant to help with matchmaking, this procedure returns only users 
---that our user has NOT previously swiped, matches their gender preference, and shares either their major or at least one hobby
-   
 -- This procedure helps with matchmaking.
 -- It returns users who match preferences and share either a major or at least one hobby.
 -- Users swiped yes are hidden, but users swiped no can reappear later.
@@ -222,14 +208,13 @@ BEGIN
        AND s2.decision = 'yes';
 END $$
 
--- This will given a match id get the conversation id .
+--gets the conversation for given match id
 CREATE PROCEDURE get_conversation_by_match (
     IN p_match_id INT
 )
 BEGIN
     SELECT
         conversation_id,
-        is_revealed,
         last_message_at,
         closed_at,
         close_reason,
@@ -238,7 +223,7 @@ BEGIN
     WHERE match_id = p_match_id;
 END $$
 
--- when we have the conversation id we can get the messages within the conversation. 
+-- get all messages for a conversation. 
 CREATE PROCEDURE get_conversation_messages (
     IN p_conversation_id INT
 )
@@ -290,7 +275,7 @@ BEGIN
        OR m.user2_id = p_user_id;
 END $$
 
--- this given the profile photos will return the photo as well as information about it. 
+--get all photos for a profile
 CREATE PROCEDURE get_profile_photos (
     IN p_profile_id INT
 )
@@ -305,4 +290,19 @@ BEGIN
     WHERE profile_id = p_profile_id
     ORDER BY position ASC;
 END $$
+
+-- Blocks one user from interacting with another user. 
+CREATE PROCEDURE block_user{
+    IN p_blocker_user_id INT, 
+    IN p_blocked_user_id INT
+}
+BEGIN
+    INSERT INTO user_blocks (blocker_user_id, blocked_user_id)
+    VALUES (p_blocker_user_id, p_blocked_user_id);
+END $$
+
+
+
+
+
 DELIMITER ;
