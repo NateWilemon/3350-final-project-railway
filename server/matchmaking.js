@@ -129,6 +129,48 @@ module.exports = function startMatchmaking(app, con) {
         });
     });
 
+// API endpoint to close a conversation
+app.post('/closeConversation', (req, res) => {
+    const { conversationID } = req.body;
+
+    if (!conversationID) {
+        return res.status(400).json({
+            message: 'Send conversationID'
+        });
+    }
+
+    con.query(
+        `
+        UPDATE conversations
+        SET closed_at = NOW(),
+            close_reason = 'closed'
+        WHERE conversation_id = ?
+        `,
+        [conversationID],
+        (err, result) => {
+            if (err) {
+                return res.status(500).json({
+                    message: 'Database error while closing conversation',
+                    error: err.message
+                });
+            }
+
+            if (result.affectedRows === 0) {
+                return res.status(404).json({
+                    message: 'Conversation not found'
+                });
+            }
+
+            return res.json({
+                message: 'Conversation closed successfully',
+                conversationID: conversationID
+            });
+        }
+    );
+});
+
+
+
     // API endpoint to swipe yes or no
     app.post('/swipe', async (req, res) => {
         console.log(req.body);
@@ -227,6 +269,115 @@ module.exports = function startMatchmaking(app, con) {
         );
     });
 
+    // API endpoint to get only open conversations for a user
+    app.get('/activeConversations/:userId', (req, res) => {
+    const userId = parseInt(req.params.userId);
+
+    if (!userId) {
+        return res.status(400).json({ message: 'Missing userId' });
+    }
+
+    con.query(
+        `
+        SELECT
+            c.conversation_id,
+            c.match_id,
+            c.last_message_at,
+            m.user1_id,
+            m.user2_id
+        FROM conversations c
+        JOIN matches m
+            ON c.match_id = m.match_id
+        WHERE (m.user1_id = ? OR m.user2_id = ?)
+          AND m.status = 'active'
+          AND c.closed_at IS NULL
+        ORDER BY c.last_message_at DESC
+        `,
+        [userId, userId],
+        (err, conversations) => {
+            if (err) {
+                return res.status(500).json({
+                    message: 'Database error while getting conversations',
+                    error: err.message
+                });
+            }
+
+            if (conversations.length === 0) {
+                return res.json({ conversations: [] });
+            }
+
+            let completed = 0;
+            const convoList = [];
+
+            conversations.forEach((conversation) => {
+                const otherUserId =
+                    conversation.user1_id === userId
+                        ? conversation.user2_id
+                        : conversation.user1_id;
+
+                con.query('CALL get_user_profile(?)', [otherUserId], (err, profileResults) => {
+                    completed++;
+
+                    if (!err && profileResults[0] && profileResults[0][0]) {
+                        convoList.push({
+                            conversation_id: conversation.conversation_id,
+                            match_id: conversation.match_id,
+                            last_message_at: conversation.last_message_at,
+                            other_user: profileResults[0][0]
+                        });
+                    }
+
+                    if (completed === conversations.length) {
+                        return res.json({ conversations: convoList });
+                    }
+                });
+            });
+        }
+    );
+});
+
+    // API endpoint to reopen a conversation
+    app.post('/openConversation', (req, res) => {
+    const { conversationID } = req.body;
+
+    if (!conversationID) {
+        return res.status(400).json({
+            message: 'Send conversationID'
+        });
+    }
+
+    con.query(
+        `
+        UPDATE conversations
+        SET closed_at = NULL,
+            close_reason = NULL
+        WHERE conversation_id = ?
+        `,
+        [conversationID],
+        (err, result) => {
+            if (err) {
+                return res.status(500).json({
+                    message: 'Database error while reopening conversation',
+                    error: err.message
+                });
+            }
+
+            if (result.affectedRows === 0) {
+                return res.status(404).json({
+                    message: 'Conversation not found'
+                });
+            }
+
+            return res.json({
+                message: 'Conversation reopened successfully',
+                conversationID: conversationID
+            });
+        }
+    );
+});
+
+
+
 
     // API endpoint to get matches for a user
     app.get('/matches/:userId', (req, res) => {
@@ -315,6 +466,50 @@ module.exports = function startMatchmaking(app, con) {
             });
         });
     });
+
+       // API endpoint to unmatch two users
+    app.post('/unmatch', (req, res) => {
+        const { matchID } = req.body;
+
+        if (!matchID) {
+            return res.status(400).json({
+                message: 'Send matchID'
+            });
+        }
+
+        con.query(
+            `
+            UPDATE matches
+            SET status = 'closed',
+                closed_at = NOW(),
+                close_reason = 'unmatched'
+            WHERE match_id = ?
+            `,
+            [matchID],
+            (err, result) => {
+                if (err) {
+                    return res.status(500).json({
+                        message: 'Database error while unmatching',
+                        error: err.message
+                    });
+                }
+
+                if (result.affectedRows === 0) {
+                    return res.status(404).json({
+                        message: 'Match not found'
+                    });
+                }
+
+                return res.json({
+                    message: 'Unmatched successfully',
+                    matchID: matchID
+                });
+            }
+        );
+    });
+
+
+
 
     // API endpoint to send a message
     app.post('/sendMessage', (req, res) => {

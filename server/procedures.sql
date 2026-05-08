@@ -100,6 +100,7 @@ BEGIN
     VALUES (p_match_id, p_user_id, NOW());
 END $$
 
+
 -- Inserting hobbies into a profile.
 CREATE PROCEDURE add_profile_hobby (
     IN p_profile_id INT,
@@ -112,7 +113,10 @@ END $$
 
 --This procedure is meant to help with matchmaking, this procedure returns only users 
 --that our user has NOT previously swiped, matches their gender preference, and shares either their major or at least one hobby
-
+   
+-- This procedure helps with matchmaking.
+-- It returns users who match preferences and share either a major or at least one hobby.
+-- Users swiped yes are hidden, but users swiped no can reappear later.
 CREATE PROCEDURE get_discover_candidates (
     IN p_user_id INT
 )
@@ -125,7 +129,11 @@ BEGIN
         p.gender,
         p.looking_for,
         p.major,
-        p.bio
+        p.bio,
+        CASE
+            WHEN s.swipe_id IS NULL THEN 0
+            WHEN s.decision = 'no' THEN 1
+        END AS queue_order
     FROM users u
     JOIN profiles p
         ON u.user_id = p.user_id
@@ -140,14 +148,17 @@ BEGIN
         ON ph_me.profile_id = me.profile_id
        AND ph_me.hobby_id = ph_candidate.hobby_id
     WHERE u.user_id <> p_user_id
-      AND s.swipe_id IS NULL
+      AND (s.swipe_id IS NULL OR s.decision = 'no')
       AND p.gender = me.looking_for
       AND p.looking_for = me.gender
       AND (
             p.major = me.major
             OR ph_me.hobby_id IS NOT NULL
-          );
+          )
+    ORDER BY queue_order ASC;
 END $$
+
+
 
 --This is going to get the profile of a user given their id.
 -- gives the profile id, name, birthdate, etc, etc.
@@ -174,7 +185,7 @@ BEGIN
     WHERE p.user_id = p_user_id;
 END $$
 
--- Get users matches given user id. 
+--Get the active matches for users. 
 CREATE PROCEDURE get_user_matches (
     IN p_user_id INT
 )
@@ -188,9 +199,11 @@ BEGIN
         closed_at,
         close_reason
     FROM matches
-    WHERE user1_id = p_user_id
-       OR user2_id = p_user_id;
+    WHERE (user1_id = p_user_id
+       OR user2_id = p_user_id)
+      AND status = 'active';
 END $$
+
 
 -- Checks if two users have both swiped yes on each other.
 CREATE PROCEDURE check_mutual_like (
