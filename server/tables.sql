@@ -14,10 +14,6 @@ CREATE TABLE hobbies (
     hobby VARCHAR(100) NOT NULL
 );
 
-CREATE TABLE anon_nicknames (
-    nickname_id INT AUTO_INCREMENT PRIMARY KEY,
-    nickname VARCHAR(100) NOT NULL
-);
 
 CREATE TABLE matches (
     match_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -78,17 +74,6 @@ CREATE TABLE swipes (
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
-CREATE TABLE reveal_requests (
-    match_id INT NOT NULL,
-    user_id INT NOT NULL,
-    requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-
-    PRIMARY KEY (match_id, user_id),
-
-    FOREIGN KEY (match_id) REFERENCES matches(match_id),
-    FOREIGN KEY (user_id) REFERENCES users(user_id)
-);
-
 CREATE TABLE reports (
     report_id INT AUTO_INCREMENT PRIMARY KEY,
     reason VARCHAR(255),
@@ -115,14 +100,14 @@ CREATE TABLE messages (
     FOREIGN KEY (report_id) REFERENCES reports(report_id)
 );
 
-CREATE TABLE email_blocks (
-    email_block_id INT AUTO_INCREMENT PRIMARY KEY,
+CREATE TABLE user_blocks (
+    block_id INT AUTO_INCREMENT PRIMARY KEY,
+    blocker_user_id int NOT NULL,
+    blocked_user_id int NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    note TEXT,
-    blocked_email VARCHAR(255) NOT NULL,
-    user_id INT,
-
-    FOREIGN KEY (user_id) REFERENCES users(user_id)
+    
+    FOREIGN KEY (blocker_user_id) REFERENCES users(user_id)
+    FOREIGN KEY (blocked_user_id) REFERENCES users(user_id)
 );
 
 CREATE TABLE profile_photos (
