@@ -130,3 +130,10 @@ CREATE TABLE profile_hobbies (
     FOREIGN KEY (profile_id) REFERENCES profiles(profile_id),
     FOREIGN KEY (hobby_id) REFERENCES hobbies(hobby_id)
 );
+
+CREATE TABLE one_time_codes (
+    user_id INT,
+    code VARCHAR(6),
+    expiresAt DATETIME,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);

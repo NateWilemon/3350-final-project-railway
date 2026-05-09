@@ -6,6 +6,19 @@ const fs = require('fs');
 const multer = require('multer')
 const path = require('path');
 const upload = multer({ dest: path.join(__dirname, 'photos/') })
+const nodemailer = require('nodemailer');
+const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD,
+    },
+});
+
+//generates a one time passcode
+const generateOTP = () => {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+};
 
 
 //exports calls to index and connects to DB from index
@@ -38,6 +51,120 @@ module.exports = function startUser(app, con) {
 
                 return res.status(201).json({ message: 'Account created successfully' });
             });
+        });
+
+    });
+
+    //API endpoint to send an email to user
+    //sends an email to the user with a 6 digit code
+    app.post('/sendEmail', async (req, res) => {
+        const { email, userID } = req.body;
+
+        if (!email || !userID) {
+            return res.status(400).json({ message: 'Missing required fields' });
+        }
+
+        //verifies user account exists and that email is correct for user account
+        con.query('SELECT * FROM users WHERE user_id = ?', [userID], async (err, rows) => {
+            if (err)
+                return res.status(500).json({ message: 'Database error' });
+            if (rows.length == 0)
+                return res.status(404).json({ message: 'User not found' });
+            if (rows[0].email !== email)
+                return res.status(400).json({ message: 'Email does not match' });
+
+            //expirtaion is current time + 1 hour
+            let expire = new Date();
+            expire.setMinutes(expire.getMinutes() + 30);
+            //converts to UTC which is what MYSQL DB uses
+            expire = expire.toISOString().slice(0, 19).replace('T', ' ');
+
+            //code is a 6 digit randomly generated number
+            let code = generateOTP();
+            con.query("DELETE FROM one_time_codes WHERE user_id = ?", [userID], (err) => {
+                if (err)
+                    return res.status(500).json({ message: 'Database error' });
+                con.query("INSERT INTO one_time_codes (user_id, code, expiresAt) VALUES (?,?,?)", [userID, code, expire], async (err) => {
+                    if (err) {
+                        return res.status(401).json({ message: 'Database error' });
+                    }
+
+                    const sendOTPEmail = async (email) => {
+                        const mailOptions = {
+                            from: process.env.EMAIL_USER,
+                            to: email,
+                            subject: "Email Verification OTP",
+                            html: `
+                            <div style="font-family: Arial, sans-serif; padding: 20px;">
+                                <h2>Email Verification</h2>
+                                <p>Your OTP for email verification is:</p>
+                                <h1 style="color: #234452; letter-spacing: 5px;">${code}</h1>
+                                <p>This OTP will expire in 30 minutes.</p>
+                            </div>
+                            `,
+                        };
+
+                        await transporter.sendMail(mailOptions);
+                    };
+                    await sendOTPEmail(email);
+                    return res.status(200).json({ message: 'OTP sent' });
+
+                });
+            });
+        });
+
+    });
+
+    //API endpoint to verify user email code
+    //updates DB saying user was verified
+    app.post('/verifyEmail', async (req, res) => {
+        const { userID, code } = req.body;
+
+        if (!userID || !code) {
+            return res.json({ message: 'Send Email and Code' });
+        }
+
+        //code must be 6 digits
+        if (code.length != 6)
+            return res.status(400).json({ message: 'Email does not match' });
+
+        con.query("SELECT * from one_time_codes WHERE user_id = ?", [userID], async (err, rows) => {
+            if (err) {
+                return res.status(500).json({ message: 'Database error' });
+            }
+            let existingCode
+            let expiration
+
+            if (rows.length > 0) {
+                existingCode = rows[0].code;
+                expiration = rows[0].expiresAt;
+            } else {
+                return res.status(400).json({ message: 'No rows found for userID' });
+            }
+
+            //if code has already expired, return error message and delete old code
+            
+            if (new Date() > new Date(expiration)) {
+                con.query("DELETE FROM one_time_codes WHERE user_id = ? AND code = ?", [userID, code], async (err) => {
+                    if (err)
+                        return res.status(500).json({ message: 'Database error' });
+                    return res.status(400).json({ message: "Code already expired" })
+                })
+                //if code doesn't match, leave
+            } else if (existingCode !== code) {
+                return res.status(400).json({ message: "Code doesn't match" });
+            } else {
+                //code is valid and not expired
+                con.query("UPDATE users SET email_verified = 1 WHERE user_id = ?", [userID], async (err) => {
+                    if (err)
+                        return res.status(500).json({ message: 'Database error' });
+                    con.query("DELETE FROM one_time_codes WHERE user_id = ? AND code = ?", [userID, code], async (err) => {
+                        if (err)
+                            return res.status(500).json({ message: 'Database error' });
+                        return res.status(200).json({ message: "User verified" })
+                    });
+                });
+            }
         });
 
     });
@@ -101,32 +228,39 @@ module.exports = function startUser(app, con) {
             return res.status(400).json({ message: 'Missing required profile fields' });
         }
 
-        //checks if user id exists
-        con.query('SELECT * FROM users WHERE user_id = ?', [userID], (err, rows) => {
-            if (err)
-                return res.json({ message: 'Database error' });
-            if (rows.length == 0)
-                return res.json({ message: 'User not found' });
+        if (bio.length > 100) {
+            return res.status(400).json({ message: 'Bio must not exceed 100 charecters' });
+        } else {
 
-            //checks if profile already exists and stops 
-            con.query('SELECT * FROM profiles WHERE user_id = ?', [userID], (err, rows) => {
-                console.log("Checking for userID:", userID);
-                console.log("Rows found:", rows.length);
+            //checks if user id exists
+            con.query('SELECT * FROM users WHERE user_id = ?', [userID], (err, rows) => {
                 if (err)
                     return res.json({ message: 'Database error' });
-                if (rows.length > 0)
-                    return res.json({ message: 'profile already exists' });
+                if (rows.length == 0)
+                    return res.json({ message: 'User not found' });
 
-                //creates profile
-                con.query('CALL create_profile(?,?,?,?,?,?,?)',
-                    [userID, name, birthdate, gender, looking_for, major, bio],
-                    (err) => {
-                        if (err) return res.json({ message: 'Database error', error: err.message });
-                        res.status(201).json({ message: 'Profile created!' });
-                    }
-                );
+
+
+                //checks if profile already exists and stops 
+                con.query('SELECT * FROM profiles WHERE user_id = ?', [userID], (err, rows) => {
+                    console.log("Checking for userID:", userID);
+                    console.log("Rows found:", rows.length);
+                    if (err)
+                        return res.json({ message: 'Database error' });
+                    if (rows.length > 0)
+                        return res.json({ message: 'profile already exists' });
+
+                    //creates profile
+                    con.query('CALL create_profile(?,?,?,?,?,?,?)',
+                        [userID, name, birthdate, gender, looking_for, major, bio],
+                        (err) => {
+                            if (err) return res.json({ message: 'Database error', error: err.message });
+                            res.status(201).json({ message: 'Profile created!' });
+                        }
+                    );
+                });
             });
-        });
+        }
     });
 
     //api endpoint to add a hobby to profile, needs user id
