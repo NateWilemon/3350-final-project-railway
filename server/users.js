@@ -4,8 +4,8 @@ const dotenv = require('dotenv');
 dotenv.config();
 const fs = require('fs');
 const multer = require('multer')
-const upload = multer({ dest: path.join(__dirname, 'photos/') })
 const path = require('path');
+const upload = multer({ dest: path.join(__dirname, 'photos/') })
 
 
 //exports calls to index and connects to DB from index

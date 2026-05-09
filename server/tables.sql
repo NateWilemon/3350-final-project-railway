@@ -106,7 +106,7 @@ CREATE TABLE user_blocks (
     blocked_user_id int NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     
-    FOREIGN KEY (blocker_user_id) REFERENCES users(user_id)
+    FOREIGN KEY (blocker_user_id) REFERENCES users(user_id),
     FOREIGN KEY (blocked_user_id) REFERENCES users(user_id)
 );
 

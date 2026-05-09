@@ -134,9 +134,21 @@ BEGIN
         ON ph_me.profile_id = me.profile_id
        AND ph_me.hobby_id = ph_candidate.hobby_id
     WHERE u.user_id <> p_user_id
-      AND (s.swipe_id IS NULL OR s.decision = 'no')
-      AND p.gender = me.looking_for
-      AND p.looking_for = me.gender
+  AND (s.swipe_id IS NULL OR s.decision = 'no')
+  AND u.user_id NOT IN (
+        SELECT blocked_user_id
+        FROM user_blocks
+        WHERE blocker_user_id = p_user_id
+      )
+  AND u.user_id NOT IN (
+        SELECT blocker_user_id
+        FROM user_blocks
+        WHERE blocked_user_id = p_user_id
+      )
+  AND p.gender = me.looking_for
+  AND p.looking_for = me.gender
+
+
       AND (
             p.major = me.major
             OR ph_me.hobby_id IS NOT NULL
@@ -294,10 +306,10 @@ BEGIN
 END $$
 
 -- Blocks one user from interacting with another user. 
-CREATE PROCEDURE block_user{
+CREATE PROCEDURE block_user(
     IN p_blocker_user_id INT, 
     IN p_blocked_user_id INT
-}
+)
 BEGIN
     INSERT INTO user_blocks (blocker_user_id, blocked_user_id)
     VALUES (p_blocker_user_id, p_blocked_user_id);

@@ -56,9 +56,6 @@ VALUES
 (1, 1, 'Hey Bob!', NOW()),
 (1, 2, 'Hey Alice! What’s up?', NOW());
 
-INSERT INTO reveal_requests (match_id, user_id)
-VALUES
-(1, 1);
 
 INSERT INTO reports (user_id, conversation_id, reason, details, stat)
 VALUES
