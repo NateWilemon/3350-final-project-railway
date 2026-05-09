@@ -135,20 +135,30 @@ BEGIN
        AND ph_me.hobby_id = ph_candidate.hobby_id
     WHERE u.user_id <> p_user_id
   AND (s.swipe_id IS NULL OR s.decision = 'no')
-  AND u.user_id NOT IN (
-        SELECT blocked_user_id
-        FROM user_blocks
-        WHERE blocker_user_id = p_user_id
+ 
+AND u.user_id NOT IN (
+    SELECT blocker_user_id
+    FROM user_blocks
+    WHERE blocked_user_id = p_user_id
+)
+AND u.user_id NOT IN (
+    SELECT
+        CASE
+            WHEN m.user1_id = p_user_id THEN m.user2_id
+            ELSE m.user1_id
+        END
+    FROM matches m
+    WHERE (m.user1_id = p_user_id OR m.user2_id = p_user_id)
+      AND m.status = 'active'
+)
+AND(
+    me.looking_for = 'Everyone'
+        OR p.gender = me.looking_for
       )
-  AND u.user_id NOT IN (
-        SELECT blocker_user_id
-        FROM user_blocks
-        WHERE blocked_user_id = p_user_id
+      AND(
+        p.looking_for = 'Everyone'
+        OR p.looking_for = me.gender
       )
-  AND p.gender = me.looking_for
-  AND p.looking_for = me.gender
-
-
       AND (
             p.major = me.major
             OR ph_me.hobby_id IS NOT NULL
