@@ -6,10 +6,9 @@ export default function Matches({ navigate }) {
   const [matches, setMatches] = useState([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    const userId = localStorage.getItem('userId')
-    if (!userId) return
+  const userId = parseInt(localStorage.getItem('userId'))
 
+  const loadMatches = () => {
     fetch(`${API}/matches/${userId}`)
       .then(res => res.json())
       .then(data => {
@@ -17,7 +16,31 @@ export default function Matches({ navigate }) {
         setLoading(false)
       })
       .catch(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => { loadMatches() }, [])
+
+  const unmatch = async (e, matchId) => {
+    e.stopPropagation()
+    if (!window.confirm('Are you sure you want to unmatch?')) return
+    await fetch(`${API}/unmatch`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ matchID: matchId }),
+    })
+    loadMatches()
+  }
+
+  const blockUser = async (e, targetUserId) => {
+    e.stopPropagation()
+    if (!window.confirm('Block this user?')) return
+    await fetch(`${API}/blockUser`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ userID: userId, targetUserID: targetUserId }),
+    })
+    loadMatches()
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--gray-100)' }}>
@@ -40,19 +63,17 @@ export default function Matches({ navigate }) {
           </div>
         )}
 
-        {/* New matches - horizontal scroll */}
         {matches.length > 0 && (
           <>
+            {/* New matches horizontal scroll */}
             <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-600)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>New</h3>
             <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 4, marginBottom: 28 }}>
               {matches.map(m => (
-                <button key={m.match_id} onClick={() => navigate('chat', { matchId: m.match_id, ...m.other_user })}
+                <button key={m.match_id}
+                  onClick={() => navigate('chat', { matchId: m.match_id, ...m.other_user })}
                   style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 72, background: 'none' }}>
-                  <div style={{ width: 68, height: 68, borderRadius: '50%', overflow: 'hidden', border: '3px solid var(--yellow)', background: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {m.other_user?.profile_picture
-                      ? <img src={m.other_user.profile_picture} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <span style={{ fontSize: 24, fontWeight: 800, color: 'var(--yellow)' }}>{m.other_user?.name?.charAt(0)}</span>
-                    }
+                  <div style={{ width: 68, height: 68, borderRadius: '50%', border: '3px solid var(--yellow)', background: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: 24, fontWeight: 800, color: 'var(--yellow)' }}>{m.other_user?.name?.charAt(0)}</span>
                   </div>
                   <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-800)' }}>{m.other_user?.name}</span>
                 </button>
@@ -63,26 +84,38 @@ export default function Matches({ navigate }) {
             <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-600)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>All Matches</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {matches.map(m => (
-                <button key={m.match_id} onClick={() => navigate('chat', { matchId: m.match_id, ...m.other_user })}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 14,
-                    background: 'var(--white)', borderRadius: 14, padding: '14px 16px',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)', textAlign: 'left',
-                  }}>
-                  <div style={{ width: 54, height: 54, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {m.other_user?.profile_picture
-                      ? <img src={m.other_user.profile_picture} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--yellow)' }}>{m.other_user?.name?.charAt(0)}</span>
-                    }
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--gray-800)' }}>{m.other_user?.name}</span>
-                      <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>{new Date(m.matched_at).toLocaleDateString()}</span>
+                <div key={m.match_id} style={{
+                  background: 'var(--white)', borderRadius: 14, padding: '14px 16px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div style={{ width: 54, height: 54, borderRadius: '50%', background: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--yellow)' }}>{m.other_user?.name?.charAt(0)}</span>
                     </div>
-                    <p style={{ fontSize: 13, color: 'var(--gray-600)', marginTop: 2 }}>{m.other_user?.major}</p>
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--gray-800)' }}>{m.other_user?.name}</span>
+                      <p style={{ fontSize: 13, color: 'var(--gray-600)', marginTop: 2 }}>{m.other_user?.major}</p>
+                    </div>
                   </div>
-                </button>
+                  {/* Action buttons */}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    <button
+                      onClick={() => navigate('chat', { matchId: m.match_id, ...m.other_user })}
+                      style={{ flex: 1, padding: '8px', background: 'var(--blue)', color: 'white', borderRadius: 10, fontSize: 13, fontWeight: 600 }}>
+                      💬 Message
+                    </button>
+                    <button
+                      onClick={(e) => unmatch(e, m.match_id)}
+                      style={{ flex: 1, padding: '8px', background: 'var(--gray-100)', color: 'var(--gray-600)', borderRadius: 10, fontSize: 13, fontWeight: 600 }}>
+                      💔 Unmatch
+                    </button>
+                    <button
+                      onClick={(e) => blockUser(e, m.other_user?.user_id)}
+                      style={{ flex: 1, padding: '8px', background: '#fee2e2', color: 'var(--red)', borderRadius: 10, fontSize: 13, fontWeight: 600 }}>
+                      🚫 Block
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           </>

@@ -6,14 +6,14 @@ export default function Chat({ match, navigate }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [showReport, setShowReport] = useState(false)
-  const [conversationId, setConversationId] = useState(null)
+  const [showOptions, setShowOptions] = useState(false)
+  const [conversationId, setConversationId] = useState(match?.conversationId || null)
   const bottomRef = useRef(null)
 
   const userId = parseInt(localStorage.getItem('userId'))
 
   useEffect(() => {
     if (!match?.matchId) return
-
     fetch(`${API}/messages/${match.matchId}`)
       .then(res => res.json())
       .then(data => {
@@ -29,31 +29,49 @@ export default function Chat({ match, navigate }) {
 
   const sendMsg = async () => {
     if (!input.trim() || !conversationId) return
-
     const text = input.trim()
     setInput('')
-
     try {
       await fetch(`${API}/sendMessage`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          conversationID: conversationId,
-          userID: userId,
-          body: text,
-        }),
+        body: JSON.stringify({ conversationID: conversationId, userID: userId, body: text }),
       })
-
-      // Add message locally
       setMessages(m => [...m, {
-        message_id: Date.now(),
-        user_id: userId,
-        body: text,
+        message_id: Date.now(), user_id: userId, body: text,
         sent_at: new Date().toISOString(),
       }])
-    } catch (err) {
-      console.error(err)
-    }
+    } catch (err) { console.error(err) }
+  }
+
+  const closeConversation = async () => {
+    if (!window.confirm('Close this conversation?')) return
+    await fetch(`${API}/closeConversation`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ conversationID: conversationId }),
+    })
+    navigate('messages')
+  }
+
+  const unmatch = async () => {
+    if (!window.confirm('Unmatch this person?')) return
+    await fetch(`${API}/unmatch`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ matchID: match.matchId }),
+    })
+    navigate('matches')
+  }
+
+  const blockUser = async () => {
+    if (!window.confirm('Block this user?')) return
+    await fetch(`${API}/blockUser`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ userID: userId, targetUserID: match?.user_id }),
+    })
+    navigate('matches')
   }
 
   return (
@@ -69,17 +87,14 @@ export default function Chat({ match, navigate }) {
             <path d="M19 12H5M12 5l-7 7 7 7"/>
           </svg>
         </button>
-        <div style={{ width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', background: 'var(--blue-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          {match?.profile_picture
-            ? <img src={match.profile_picture} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            : <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--yellow)' }}>{match?.name?.charAt(0)}</span>
-          }
+        <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--yellow)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--blue)' }}>{match?.name?.charAt(0)}</span>
         </div>
         <div style={{ flex: 1 }}>
           <p style={{ color: 'white', fontWeight: 700, fontSize: 16 }}>{match?.name || 'Match'}</p>
           {match?.major && <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>{match.major}</p>}
         </div>
-        <button onClick={() => setShowReport(true)} style={{ color: 'rgba(255,255,255,0.8)' }}>
+        <button onClick={() => setShowOptions(true)} style={{ color: 'rgba(255,255,255,0.8)' }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
           </svg>
@@ -96,11 +111,7 @@ export default function Chat({ match, navigate }) {
         {messages.map(msg => {
           const isMe = msg.user_id === userId
           return (
-            <div key={msg.message_id} style={{
-              display: 'flex',
-              justifyContent: isMe ? 'flex-end' : 'flex-start',
-              marginBottom: 10,
-            }}>
+            <div key={msg.message_id} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start', marginBottom: 10 }}>
               <div style={{
                 maxWidth: '75%',
                 background: isMe ? 'var(--blue)' : 'var(--white)',
@@ -126,19 +137,12 @@ export default function Chat({ match, navigate }) {
         padding: '10px 14px', background: 'var(--white)',
         borderTop: '1px solid var(--gray-200)',
         display: 'flex', alignItems: 'center', gap: 10,
-        position: 'fixed', bottom: 'var(--nav-height)', left: 0, right: 0,
-        zIndex: 50,
+        position: 'fixed', bottom: 'var(--nav-height)', left: 0, right: 0, zIndex: 50,
       }}>
-        <input
-          value={input} onChange={e => setInput(e.target.value)}
+        <input value={input} onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && sendMsg()}
           placeholder="Type a message..."
-          style={{
-            flex: 1, padding: '11px 16px',
-            border: '1.5px solid var(--gray-200)',
-            borderRadius: 99, fontSize: 15, outline: 'none',
-            background: 'var(--gray-100)',
-          }}
+          style={{ flex: 1, padding: '11px 16px', border: '1.5px solid var(--gray-200)', borderRadius: 99, fontSize: 15, outline: 'none', background: 'var(--gray-100)' }}
         />
         <button onClick={sendMsg} disabled={!input.trim()}
           style={{
@@ -152,16 +156,65 @@ export default function Chat({ match, navigate }) {
         </button>
       </div>
 
-      {showReport && <ReportModal onClose={() => setShowReport(false)} />}
+      {/* Options Modal */}
+      {showOptions && (
+        <div style={overlayStyle} onClick={() => setShowOptions(false)}>
+          <div style={modalStyle} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--blue)', marginBottom: 16 }}>Options</h3>
+            {[
+              { label: '📋 Report User', action: () => { setShowOptions(false); setShowReport(true) }, color: 'var(--gray-800)' },
+              { label: '💬 Close Conversation', action: () => { setShowOptions(false); closeConversation() }, color: 'var(--gray-800)' },
+              { label: '💔 Unmatch', action: () => { setShowOptions(false); unmatch() }, color: 'var(--gray-800)' },
+              { label: '🚫 Block User', action: () => { setShowOptions(false); blockUser() }, color: 'var(--red)' },
+            ].map(item => (
+              <button key={item.label} onClick={item.action} style={{
+                display: 'block', width: '100%', padding: '14px 0',
+                borderBottom: '1px solid var(--gray-200)', textAlign: 'left',
+                fontSize: 15, fontWeight: 600, color: item.color,
+              }}>
+                {item.label}
+              </button>
+            ))}
+            <button onClick={() => setShowOptions(false)}
+              style={{ width: '100%', marginTop: 16, padding: 13, background: 'var(--gray-100)', borderRadius: 12, fontWeight: 600, color: 'var(--gray-600)' }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showReport && <ReportModal conversationId={conversationId} userId={userId} onClose={() => setShowReport(false)} />}
     </div>
   )
 }
 
-function ReportModal({ onClose }) {
+function ReportModal({ conversationId, userId, onClose }) {
   const [reason, setReason] = useState('')
   const [details, setDetails] = useState('')
+  const [messageId, setMessageId] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [loading, setLoading] = useState(false)
   const reasons = ['Inappropriate behavior', 'Harassment', 'Spam', 'Fake profile', 'Other']
+
+  const submit = async () => {
+    if (!reason || !messageId) return
+    setLoading(true)
+    try {
+      await fetch(`${API}/reportUser`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          userID: userId,
+          conversationID: conversationId,
+          reasons: reason,
+          details: details,
+          messageID: parseInt(messageId),
+        }),
+      })
+      setSubmitted(true)
+    } catch { }
+    setLoading(false)
+  }
 
   if (submitted) {
     return (
@@ -198,17 +251,21 @@ function ReportModal({ onClose }) {
             </button>
           ))}
         </div>
+        <input value={messageId} onChange={e => setMessageId(e.target.value)}
+          placeholder="Message ID to report (optional)"
+          style={{ width: '100%', padding: '10px 14px', border: '1.5px solid var(--gray-200)', borderRadius: 10, fontSize: 14, outline: 'none', marginBottom: 10 }}
+        />
         <textarea value={details} onChange={e => setDetails(e.target.value)}
           placeholder="Additional details (optional)" rows={3}
           style={{ width: '100%', padding: '10px 14px', border: '1.5px solid var(--gray-200)', borderRadius: 10, fontSize: 14, outline: 'none', resize: 'none', marginBottom: 16 }}
         />
-        <button onClick={() => reason && setSubmitted(true)} disabled={!reason}
+        <button onClick={submit} disabled={!reason || loading}
           style={{
             width: '100%', padding: 13, borderRadius: 12, fontWeight: 700, fontSize: 15,
             background: reason ? 'var(--red)' : 'var(--gray-200)',
             color: reason ? 'white' : 'var(--gray-400)',
           }}>
-          Submit Report
+          {loading ? 'Submitting...' : 'Submit Report'}
         </button>
       </div>
     </div>

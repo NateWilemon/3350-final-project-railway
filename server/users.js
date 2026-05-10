@@ -504,7 +504,7 @@ module.exports = function startUser(app, con) {
             [req.params.photoId], (err, rows) => {
                 if (err) return res.status(500).json({ message: 'Database error' });
                 if (rows.length == 0) return res.status(404).json({ message: 'Photo not found' });
-                res.sendFile(rows[0].file_path, { root: '.' });
+                res.sendFile(path.resolve(rows[0].file_path));
             });
     });
 
