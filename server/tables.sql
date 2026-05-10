@@ -30,13 +30,23 @@ CREATE TABLE matches (
 
 CREATE TABLE conversations (
     conversation_id INT AUTO_INCREMENT PRIMARY KEY,
-    is_revealed BOOLEAN DEFAULT FALSE,
+    ,
     last_message_at DATETIME,
     closed_at DATETIME,
     close_reason VARCHAR(255),
     match_id INT,
 
     FOREIGN KEY (match_id) REFERENCES matches(match_id)
+);
+
+CREATE TABLE user_conversations (
+    user_id INT NOT NULL,
+    conversation_id INT NOT NULL,
+    is_closed BOOLEAN DEFAULT FALSE,
+
+    PRIMARY KEY (user_id, conversation_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id)
 );
 
 CREATE TABLE profiles (

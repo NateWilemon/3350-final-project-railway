@@ -129,24 +129,24 @@ module.exports = function startMatchmaking(app, con) {
         });
     });
 
-// API endpoint to close a conversation
+// API endpoint to close a conversation for one user
 app.post('/closeConversation', (req, res) => {
-    const { conversationID } = req.body;
+    const { userID, conversationID } = req.body;
 
-    if (!conversationID) {
+    if (!userID || !conversationID) {
         return res.status(400).json({
-            message: 'Send conversationID'
+            message: 'Send userID and conversationID'
         });
     }
 
     con.query(
         `
-        UPDATE conversations
-        SET closed_at = NOW(),
-            close_reason = 'closed'
-        WHERE conversation_id = ?
+        UPDATE user_conversations
+        SET is_closed = TRUE
+        WHERE user_id = ?
+          AND conversation_id = ?
         `,
-        [conversationID],
+        [userID, conversationID],
         (err, result) => {
             if (err) {
                 return res.status(500).json({
@@ -157,13 +157,14 @@ app.post('/closeConversation', (req, res) => {
 
             if (result.affectedRows === 0) {
                 return res.status(404).json({
-                    message: 'Conversation not found'
+                    message: 'Conversation not found for this user'
                 });
             }
 
             return res.json({
-                message: 'Conversation closed successfully',
-                conversationID: conversationID
+                message: 'Conversation closed for user',
+                userID,
+                conversationID
             });
         }
     );
@@ -397,8 +398,8 @@ app.get('/blockedUsers/:userId', (req, res) => {
         }
     );
 });
-    // API endpoint to get only open conversations for a user
-    app.get('/activeConversations/:userId', (req, res) => {
+   // API endpoint to get only open conversations for a user
+app.get('/activeConversations/:userId', (req, res) => {
     const userId = parseInt(req.params.userId);
 
     if (!userId) {
@@ -413,15 +414,17 @@ app.get('/blockedUsers/:userId', (req, res) => {
             c.last_message_at,
             m.user1_id,
             m.user2_id
-        FROM conversations c
+        FROM user_conversations uc
+        JOIN conversations c
+            ON uc.conversation_id = c.conversation_id
         JOIN matches m
             ON c.match_id = m.match_id
-        WHERE (m.user1_id = ? OR m.user2_id = ?)
+        WHERE uc.user_id = ?
+          AND uc.is_closed = FALSE
           AND m.status = 'active'
-          AND c.closed_at IS NULL
         ORDER BY c.last_message_at DESC
         `,
-        [userId, userId],
+        [userId],
         (err, conversations) => {
             if (err) {
                 return res.status(500).json({
@@ -464,24 +467,24 @@ app.get('/blockedUsers/:userId', (req, res) => {
     );
 });
 
-    // API endpoint to reopen a conversation
-    app.post('/openConversation', (req, res) => {
-    const { conversationID } = req.body;
+// API endpoint to reopen a conversation for one user
+app.post('/openConversation', (req, res) => {
+    const { userID, conversationID } = req.body;
 
-    if (!conversationID) {
+    if (!userID || !conversationID) {
         return res.status(400).json({
-            message: 'Send conversationID'
+            message: 'Send userID and conversationID'
         });
     }
 
     con.query(
         `
-        UPDATE conversations
-        SET closed_at = NULL,
-            close_reason = NULL
-        WHERE conversation_id = ?
+        UPDATE user_conversations
+        SET is_closed = FALSE
+        WHERE user_id = ?
+          AND conversation_id = ?
         `,
-        [conversationID],
+        [userID, conversationID],
         (err, result) => {
             if (err) {
                 return res.status(500).json({
@@ -492,18 +495,18 @@ app.get('/blockedUsers/:userId', (req, res) => {
 
             if (result.affectedRows === 0) {
                 return res.status(404).json({
-                    message: 'Conversation not found'
+                    message: 'Conversation not found for this user'
                 });
             }
 
             return res.json({
-                message: 'Conversation reopened successfully',
-                conversationID: conversationID
+                message: 'Conversation reopened for user',
+                userID,
+                conversationID
             });
         }
     );
 });
-
 
 
 
@@ -706,9 +709,26 @@ app.get('/blockedUsers/:userId', (req, res) => {
                             });
                         }
 
-                        return res.json({
-                            message: 'Message sent'
-                        });
+                      con.query(
+                     `
+                    UPDATE user_conversations
+                    SET is_closed = FALSE
+                    WHERE conversation_id = ?
+                    `,
+                [conversationID],
+                (err) => {
+                 if (err) {
+                 return res.status(500).json({
+                message: 'Message sent, but error reopening conversation',
+                error: err.message
+            });
+        }
+
+        return res.json({
+            message: 'Message sent and conversation reopened'
+        });
+    }
+);
                     }
                 );
             }

@@ -31,36 +31,73 @@ BEGIN
     VALUES (p_user_id, p_name, p_birthdate, p_gender, p_looking_for, p_major, p_bio);
 END $$
 
--- This is going to tell us what happened upon a swipe being done.
+--This records our swipes.
 CREATE PROCEDURE record_swipe (
     IN p_user_id INT,
     IN p_target_id INT,
     IN p_decision VARCHAR(50)
 )
 BEGIN
+    DELETE FROM swipes
+    WHERE user_id = p_user_id
+      AND target_id = p_target_id;
+
     INSERT INTO swipes (user_id, target_id, decision)
     VALUES (p_user_id, p_target_id, p_decision);
 END $$
+
 
 CREATE PROCEDURE create_match (
     IN p_user1_id INT,
     IN p_user2_id INT
 )
 BEGIN
-    INSERT INTO matches (user1_id, user2_id, status, matched_at)
-    VALUES (p_user1_id, p_user2_id, 'active', NOW());
+    DECLARE existing_match_id INT DEFAULT NULL;
 
-    SELECT LAST_INSERT_ID() AS match_id;
+    SELECT match_id
+    INTO existing_match_id
+    FROM matches
+    WHERE status = 'active'
+      AND (
+            (user1_id = p_user1_id AND user2_id = p_user2_id)
+         OR (user1_id = p_user2_id AND user2_id = p_user1_id)
+      )
+    LIMIT 1;
+
+    IF existing_match_id IS NOT NULL THEN
+        SELECT existing_match_id AS match_id;
+    ELSE
+        INSERT INTO matches (user1_id, user2_id, status, matched_at)
+        VALUES (p_user1_id, p_user2_id, 'active', NOW());
+
+        SELECT LAST_INSERT_ID() AS match_id;
+    END IF;
 END $$
 
 
--- This puts our match into a conversation.
+
 CREATE PROCEDURE create_conversation (
     IN p_match_id INT
 )
 BEGIN
+    DECLARE new_conversation_id INT;
+    DECLARE p_user1_id INT;
+    DECLARE p_user2_id INT;
+
     INSERT INTO conversations (match_id, last_message_at)
     VALUES (p_match_id, NOW());
+
+    SET new_conversation_id = LAST_INSERT_ID();
+
+    SELECT user1_id, user2_id
+    INTO p_user1_id, p_user2_id
+    FROM matches
+    WHERE match_id = p_match_id;
+
+    INSERT INTO user_conversations (user_id, conversation_id, is_closed)
+    VALUES
+        (p_user1_id, new_conversation_id, FALSE),
+        (p_user2_id, new_conversation_id, FALSE);
 END $$
 
 -- This is our procedure for sending a message.
