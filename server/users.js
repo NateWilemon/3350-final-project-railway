@@ -7,6 +7,7 @@ const multer = require('multer')
 const path = require('path');
 const upload = multer({ dest: path.join(__dirname, 'photos/') })
 const nodemailer = require('nodemailer');
+const { resolve } = require('dns');
 const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
@@ -143,7 +144,7 @@ module.exports = function startUser(app, con) {
             }
 
             //if code has already expired, return error message and delete old code
-            
+
             if (new Date() > new Date(expiration)) {
                 con.query("DELETE FROM one_time_codes WHERE user_id = ? AND code = ?", [userID, code], async (err) => {
                     if (err)
@@ -263,7 +264,41 @@ module.exports = function startUser(app, con) {
         }
     });
 
-    //api endpoint to add a hobby to profile, needs user id
+    //api endpoint to update profile
+    //needs userID though nothing else is needed
+    app.post('/updateProfile', async (req, res) => {
+        const { userID, name, birthdate, gender, looking_for, major, bio } = req.body;
+
+        con.query('SELECT * FROM users WHERE user_id = ?', [userID], (err, rows) => {
+            if (err)
+                return res.status(500).json({ message: 'Database error' });
+            if (rows.length == 0)
+                return res.status(401).json({ message: 'User not found' });
+
+            //if field exists, put in updates
+            const updates = {}
+            if (name)
+                updates.name = name
+            if (birthdate)
+                updates.birthdate = birthdate
+            if (gender)
+                updates.gender = gender
+            if (looking_for)
+                updates.looking_for = looking_for
+            if (major)
+                updates.major = major
+            if (bio !== undefined)
+                updates.bio = bio
+
+            //pass updates array into sql query
+            con.query('UPDATE profiles SET ? WHERE user_id = ?', [updates, userID], (err) => {
+                if (err) return res.status(500).json({ message: 'Database error' });
+                return res.status(200).json({ message: 'Profile updated' });
+            });
+        });
+    });
+
+
     //api endpoint to add a hobby to profile, needs user id
     app.post('/addHobby', async (req, res) => {
         const { userID, hobbies } = req.body;
@@ -293,25 +328,30 @@ module.exports = function startUser(app, con) {
                         });
                     });
                 });
-                //adds hobby to profile
-                //insert as promise
-                Promise.all(insertPromises)
-                    .then(() => {
-                        const queries = hobbies.map((hobby) => {
-                            return new Promise((resolve, reject) => {
-                                const hobbyID = foundHobbies.get(hobby);
-                                con.query('CALL add_profile_hobby(?,?)', [PID, hobbyID], (err) => {
-                                    if (err) reject(err);
-                                    else resolve();
+                //Delete existing hobbies to insert new ones
+                con.query('DELETE FROM profile_hobbies WHERE profile_id = ?', [PID], (err) => {
+                    if (err) return res.json({ message: 'Database error' });
+                    //adds hobby to profile
+                    //insert as promise                              
+                    Promise.all(insertPromises)
+                        .then(() => {
+                            const queries = hobbies.map((hobby) => {
+                                return new Promise((resolve, reject) => {
+                                    const hobbyID = foundHobbies.get(hobby);
+                                    con.query('CALL add_profile_hobby(?,?)', [PID, hobbyID], (err) => {
+                                        if (err) reject(err);
+                                        else resolve();
+                                    });
                                 });
                             });
-                        });
-                        //executes all promises
-                        Promise.all(queries)
-                            .then(() => res.status(201).json({ message: 'Hobby added!' }))
-                            .catch((err) => res.json({ message: 'Database error', error: err.message }));
-                    })
-                    .catch((err) => res.json({ message: 'Database error', error: err.message }));
+                            //executes all promises
+                            Promise.all(queries)
+                                .then(() => res.status(201).json({ message: 'Hobby added!' }))
+                                .catch((err) => res.json({ message: 'Database error', error: err.message }));
+                        })
+
+                        .catch((err) => res.json({ message: 'Database error', error: err.message }));
+                });
             });
         });
     });
@@ -407,7 +447,7 @@ module.exports = function startUser(app, con) {
 
                 if (pfp == 1) {
                     //if new pfp remove old one
-                    con.query('UPDATE profile_photos SET is_primary = 0 WHERE profile_id = ?', [profileID], (err) => {
+                    con.query('DELETE FROM profile_photos WHERE profile_id = ? AND is_primary = 1', [profileID], (err) => {
                         if (err)
                             return res.status(500).json({ message: 'Database error' });
 
@@ -506,6 +546,20 @@ module.exports = function startUser(app, con) {
                 if (rows.length == 0) return res.status(404).json({ message: 'Photo not found' });
                 res.sendFile(path.resolve(rows[0].file_path));
             });
+    });
+
+    //deletes photo based on photo ID
+    app.post('/deletePhotos', async (req, res) => {
+        const { photoID } = req.body;
+        if (!photoID) {
+            return res.status(400).json({ message: 'Please Send photoID' });
+        }
+
+        con.query('DELETE FROM profile_photos WHERE photo_id = ?', [photoID], (err, result) => {
+            if (err) return res.status(500).json({ message: 'Database error' });
+            if (result.affectedRows === 0) return res.status(404).json({ message: 'Photo not found' });
+            return res.status(200).json({ message: 'Photo deleted' });
+        });
     });
 
 

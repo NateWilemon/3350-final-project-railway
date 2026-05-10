@@ -219,6 +219,7 @@ BEGIN
         p.looking_for,
         p.major,
         p.bio,
+        u.user_id,
         u.email,
         u.email_verified,
         u.status,
