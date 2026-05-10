@@ -22,24 +22,22 @@ export default function Matches({ navigate }) {
 
   const unmatch = async (e, matchId) => {
     e.stopPropagation()
-    if (!window.confirm('Are you sure you want to unmatch?')) return
     await fetch(`${API}/unmatch`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ matchID: matchId }),
     })
-    loadMatches()
+    setMatches(prev => prev.filter(m => m.match_id !== matchId))
   }
 
-  const blockUser = async (e, targetUserId) => {
+  const blockUser = async (e, targetUserId, matchId) => {
     e.stopPropagation()
-    if (!window.confirm('Block this user?')) return
     await fetch(`${API}/blockUser`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ userID: userId, targetUserID: targetUserId }),
     })
-    loadMatches()
+    setMatches(prev => prev.filter(m => m.match_id !== matchId))
   }
 
   return (
@@ -110,7 +108,7 @@ export default function Matches({ navigate }) {
                       💔 Unmatch
                     </button>
                     <button
-                      onClick={(e) => blockUser(e, m.other_user?.user_id)}
+                      onClick={(e) => blockUser(e, m.other_user?.user_id, m.match_id)}
                       style={{ flex: 1, padding: '8px', background: '#fee2e2', color: 'var(--red)', borderRadius: 10, fontSize: 13, fontWeight: 600 }}>
                       🚫 Block
                     </button>
