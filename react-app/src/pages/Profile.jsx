@@ -36,8 +36,7 @@ export default function Profile({ navigate }) {
     navigate('login')
   }
 
-  useEffect(() => {
-    if (!userId) return
+  const loadProfile = () => {
     fetch(`${API}/profile/${userId}`)
       .then(res => res.json())
       .then(data => {
@@ -47,6 +46,11 @@ export default function Profile({ navigate }) {
         fetchPhotos()
       })
       .catch(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    if (!userId) return
+    loadProfile()
   }, [])
 
   const fetchPFP = () => {
@@ -286,7 +290,7 @@ export default function Profile({ navigate }) {
 
       {/* Email Verify Modal */}
       {showEmailVerify && (
-        <EmailVerifyModal userId={userId} email={profile.email} onClose={() => setShowEmailVerify(false)} />
+        <EmailVerifyModal userId={userId} email={profile.email} onClose={() => { setShowEmailVerify(false); loadProfile() }} />
       )}
     </div>
   )
