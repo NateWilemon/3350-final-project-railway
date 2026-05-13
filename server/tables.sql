@@ -30,7 +30,6 @@ CREATE TABLE matches (
 
 CREATE TABLE conversations (
     conversation_id INT AUTO_INCREMENT PRIMARY KEY,
-    ,
     last_message_at DATETIME,
     closed_at DATETIME,
     close_reason VARCHAR(255),
