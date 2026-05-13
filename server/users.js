@@ -6,7 +6,8 @@ const fs = require('fs');
 const multer = require('multer')
 const path = require('path');
 const upload = multer({ dest: path.join(__dirname, 'photos/') })
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend')
+const resend = new Resend(process.env.RESEND_API_KEY)
 const { resolve } = require('dns');
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
@@ -40,10 +41,10 @@ module.exports = function startUser(app, con) {
         }
 
         con.query('SELECT * FROM users WHERE email = ?', [email], async (err, rows) => {
-            if (err){
+            if (err) {
                 console.log('Select error:', err.message)
                 return res.json({ message: 'Database error' });
-                    }
+            }
             if (rows.length > 0)
                 return res.json({ message: 'Email is already in use' });
 
@@ -70,11 +71,9 @@ module.exports = function startUser(app, con) {
     //sends an email to the user with a 6 digit code
     app.post('/sendEmail', async (req, res) => {
         const { email, userID } = req.body;
-
         if (!email || !userID) {
             return res.status(400).json({ message: 'Missing required fields' });
         }
-
         //verifies user account exists and that email is correct for user account
         con.query('SELECT * FROM users WHERE user_id = ?', [userID], async (err, rows) => {
             if (err)
@@ -83,13 +82,11 @@ module.exports = function startUser(app, con) {
                 return res.status(404).json({ message: 'User not found' });
             if (rows[0].email !== email)
                 return res.status(400).json({ message: 'Email does not match' });
-
             //expirtaion is current time + 1 hour
             let expire = new Date();
             expire.setMinutes(expire.getMinutes() + 30);
             //converts to UTC which is what MYSQL DB uses
             expire = expire.toISOString().slice(0, 19).replace('T', ' ');
-
             //code is a 6 digit randomly generated number
             let code = generateOTP();
             con.query("DELETE FROM one_time_codes WHERE user_id = ?", [userID], (err) => {
@@ -99,12 +96,12 @@ module.exports = function startUser(app, con) {
                     if (err) {
                         return res.status(401).json({ message: 'Database error' });
                     }
-
-                    const sendOTPEmail = async (email) => {
-                        const mailOptions = {
-                            from: process.env.EMAIL_USER,
+                    try {
+                        //sends OTP email using resend
+                        await resend.emails.send({
+                            from: 'onboarding@resend.dev',
                             to: email,
-                            subject: "Email Verification OTP",
+                            subject: 'Email Verification OTP',
                             html: `
                             <div style="font-family: Arial, sans-serif; padding: 20px;">
                                 <h2>Email Verification</h2>
@@ -113,17 +110,15 @@ module.exports = function startUser(app, con) {
                                 <p>This OTP will expire in 30 minutes.</p>
                             </div>
                             `,
-                        };
-
-                        await transporter.sendMail(mailOptions);
-                    };
-                    await sendOTPEmail(email);
-                    return res.status(200).json({ message: 'OTP sent' });
-
+                        });
+                        return res.status(200).json({ message: 'OTP sent' });
+                    } catch (err) {
+                        console.log('Email error:', err);
+                        return res.status(500).json({ message: 'Failed to send email' });
+                    }
                 });
             });
         });
-
     });
 
     //API endpoint to verify user email code
