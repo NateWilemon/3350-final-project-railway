@@ -6,10 +6,10 @@ const fs = require('fs');
 const multer = require('multer')
 const path = require('path');
 const upload = multer({ dest: path.join(__dirname, 'photos/') })
-const { ApiClient, TransactionalEmailsApi } = require('@getbrevo/brevo')
-const brevoClient = ApiClient.instance
+const SibApiV3Sdk = require('@getbrevo/brevo')
+const brevoClient = SibApiV3Sdk.ApiClient.instance
 brevoClient.authentications['api-key'].apiKey = process.env.BREVO_API_KEY
-const transactionalApi = new TransactionalEmailsApi()
+const transactionalApi = new SibApiV3Sdk.TransactionalEmailsApi()
 const { resolve } = require('dns');
 
 
