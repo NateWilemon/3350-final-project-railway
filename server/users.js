@@ -6,9 +6,14 @@ const fs = require('fs');
 const multer = require('multer')
 const path = require('path');
 const upload = multer({ dest: path.join(__dirname, 'photos/') })
-const Brevo = require('@getbrevo/brevo')
-const apiInstance = new Brevo.TransactionalEmailsApi()
-apiInstance.authentications['api-key'].apiKey = process.env.BREVO_API_KEY
+const Brevo = require('@getbrevo/brevo');
+
+const apiInstance = new Brevo.TransactionalEmailsApi();
+
+apiInstance.setApiKey(
+    Brevo.TransactionalEmailsApiApiKeys.apiKey,
+    process.env.BREVO_API_KEY
+);
 
 //generates a one time passcode
 const generateOTP = () => {
