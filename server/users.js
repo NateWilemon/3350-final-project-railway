@@ -10,13 +10,17 @@ const nodemailer = require('nodemailer');
 const { resolve } = require('dns');
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
+    port: 587,
+    secure: false, // Must be false for 587
+    family: 4,
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASSWORD
+    },
+    tls: {
+        rejectUnauthorized: false // Helps if the data center certificate chain is weird
     }
-})
+});
 
 //generates a one time passcode
 const generateOTP = () => {
