@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 
-const API = 'https://rowdydating.up.railway.app'
+const API = 'http://localhost:3001'
 
 export default function Matches({ navigate }) {
   const [matches, setMatches] = useState([])
+  const [pfpUrls, setPfpUrls] = useState({})
   const [loading, setLoading] = useState(true)
 
   const userId = parseInt(localStorage.getItem('userId'))
@@ -19,6 +20,28 @@ export default function Matches({ navigate }) {
   }
 
   useEffect(() => { loadMatches() }, [])
+
+  useEffect(() => {
+    matches.forEach(match => {
+      const otherUserId = match.other_user?.user_id
+      if (!otherUserId || pfpUrls[otherUserId]) return
+
+      fetch(`${API}/getPFP`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ userID: otherUserId }),
+      })
+        .then(res => res.ok ? res.blob() : null)
+        .then(blob => {
+          if (!blob) return
+          setPfpUrls(prev => ({
+            ...prev,
+            [otherUserId]: URL.createObjectURL(blob),
+          }))
+        })
+        .catch(() => {})
+    })
+  }, [matches])
 
   const unmatch = async (e, matchId) => {
     e.stopPropagation()
@@ -70,8 +93,12 @@ export default function Matches({ navigate }) {
                 <button key={m.match_id}
                   onClick={() => navigate('chat', { matchId: m.match_id, ...m.other_user })}
                   style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 72, background: 'none' }}>
-                  <div style={{ width: 68, height: 68, borderRadius: '50%', border: '3px solid var(--yellow)', background: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: 24, fontWeight: 800, color: 'var(--yellow)' }}>{m.other_user?.name?.charAt(0)}</span>
+                  <div style={{ width: 68, height: 68, borderRadius: '50%', border: '3px solid var(--yellow)', background: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                    {pfpUrls[m.other_user?.user_id] ? (
+                      <img src={pfpUrls[m.other_user.user_id]} alt={m.other_user?.name || 'Match'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <span style={{ fontSize: 24, fontWeight: 800, color: 'var(--yellow)' }}>{m.other_user?.name?.charAt(0)}</span>
+                    )}
                   </div>
                   <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-800)' }}>{m.other_user?.name}</span>
                 </button>
@@ -87,8 +114,12 @@ export default function Matches({ navigate }) {
                   boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <div style={{ width: 54, height: 54, borderRadius: '50%', background: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--yellow)' }}>{m.other_user?.name?.charAt(0)}</span>
+                    <div style={{ width: 54, height: 54, borderRadius: '50%', background: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                      {pfpUrls[m.other_user?.user_id] ? (
+                        <img src={pfpUrls[m.other_user.user_id]} alt={m.other_user?.name || 'Match'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--yellow)' }}>{m.other_user?.name?.charAt(0)}</span>
+                      )}
                     </div>
                     <div style={{ flex: 1 }}>
                       <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--gray-800)' }}>{m.other_user?.name}</span>

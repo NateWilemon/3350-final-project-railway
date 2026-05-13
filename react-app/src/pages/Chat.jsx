@@ -1,16 +1,26 @@
 import { useState, useRef, useEffect } from 'react'
 
-const API = 'https://rowdydating.up.railway.app'
+const API = 'http://localhost:3001'
 
 export default function Chat({ match, navigate }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
+  const [pfpUrl, setPfpUrl] = useState(null)
   const [showReport, setShowReport] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
   const [conversationId, setConversationId] = useState(match?.conversationId || null)
   const bottomRef = useRef(null)
 
   const userId = parseInt(localStorage.getItem('userId'))
+  const closedKey = `closedConversations:${userId}`
+
+  const saveClosedMatch = (matchId) => {
+    if (!matchId) return
+    const closed = JSON.parse(localStorage.getItem(closedKey) || '[]')
+    if (!closed.includes(matchId)) {
+      localStorage.setItem(closedKey, JSON.stringify([...closed, matchId]))
+    }
+  }
 
   useEffect(() => {
     if (!match?.matchId) return
@@ -24,34 +34,113 @@ export default function Chat({ match, navigate }) {
   }, [match])
 
   useEffect(() => {
+    const otherUserId = match?.user_id || match?.id
+    if (!otherUserId) return
+
+    fetch(`${API}/getPFP`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ userID: otherUserId }),
+    })
+      .then(res => res.ok ? res.blob() : null)
+      .then(blob => {
+        if (blob) setPfpUrl(URL.createObjectURL(blob))
+      })
+      .catch(() => setPfpUrl(null))
+  }, [match])
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  const getConversationId = async () => {
+    if (conversationId) return conversationId
+    if (!match?.matchId) return null
+
+    const res = await fetch(`${API}/messages/${match.matchId}`)
+    const data = await res.json()
+    const resolvedId = data.conversation?.conversation_id || null
+
+    if (resolvedId) setConversationId(resolvedId)
+    return resolvedId
+  }
+
   const sendMsg = async () => {
-    if (!input.trim() || !conversationId) return
+    if (!input.trim()) return
+
+    const idToUse = await getConversationId()
+    if (!idToUse) {
+      alert('Could not find this conversation.')
+      return
+    }
+
     const text = input.trim()
     setInput('')
+
     try {
-      await fetch(`${API}/sendMessage`, {
+      const res = await fetch(`${API}/sendMessage`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ conversationID: conversationId, userID: userId, body: text }),
+        body: JSON.stringify({ conversationID: idToUse, userID: userId, body: text }),
       })
+
+      if (!res.ok) {
+        alert('Could not send message.')
+        setInput(text)
+        return
+      }
+
       setMessages(m => [...m, {
-        message_id: Date.now(), user_id: userId, body: text,
+        message_id: Date.now(),
+        user_id: userId,
+        body: text,
         sent_at: new Date().toISOString(),
       }])
-    } catch (err) { console.error(err) }
+    } catch {
+      alert('Could not connect to server. Make sure it is running.')
+      setInput(text)
+    }
   }
 
   const closeConversation = async () => {
     if (!window.confirm('Close this conversation?')) return
-    await fetch(`${API}/closeConversation`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ conversationID: conversationId }),
-    })
-    navigate('messages')
+
+    try {
+      const idToClose = await getConversationId()
+
+      if (idToClose) {
+        let closeRes = await fetch(`${API}/closeConversation`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            userID: userId,
+            conversationID: idToClose,
+          }),
+        })
+
+        if (closeRes.status === 404) {
+          closeRes = await fetch(`${API}/closeconversation`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              userID: userId,
+              conversationID: idToClose,
+            }),
+          })
+        }
+
+        if (!closeRes.ok && closeRes.status !== 404) {
+          alert('Could not close conversation.')
+          return
+        }
+      }
+
+      saveClosedMatch(match?.matchId)
+      navigate('messages')
+    } catch {
+      saveClosedMatch(match?.matchId)
+      navigate('messages')
+    }
   }
 
   const unmatch = async () => {
@@ -66,17 +155,24 @@ export default function Chat({ match, navigate }) {
 
   const blockUser = async () => {
     if (!window.confirm('Block this user?')) return
+
+    const targetUserID = match?.user_id || match?.id
+    if (!targetUserID) {
+      alert('Could not find this user to block.')
+      return
+    }
+
     await fetch(`${API}/blockUser`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ userID: userId, targetUserID: match?.user_id }),
+      body: JSON.stringify({ userID: userId, targetUserID }),
     })
+
     navigate('matches')
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--gray-100)', paddingBottom: 'var(--nav-height)' }}>
-      {/* Header */}
       <div style={{
         background: 'var(--blue)', padding: '12px 16px',
         display: 'flex', alignItems: 'center', gap: 12,
@@ -87,8 +183,16 @@ export default function Chat({ match, navigate }) {
             <path d="M19 12H5M12 5l-7 7 7 7"/>
           </svg>
         </button>
-        <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--yellow)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--blue)' }}>{match?.name?.charAt(0)}</span>
+        <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--yellow)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+          {pfpUrl ? (
+            <img
+              src={pfpUrl}
+              alt={match?.name || 'Match'}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          ) : (
+            <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--blue)' }}>{match?.name?.charAt(0)}</span>
+          )}
         </div>
         <div style={{ flex: 1 }}>
           <p style={{ color: 'white', fontWeight: 700, fontSize: 16 }}>{match?.name || 'Match'}</p>
@@ -101,11 +205,10 @@ export default function Chat({ match, navigate }) {
         </button>
       </div>
 
-      {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
         {messages.length === 0 && (
           <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--gray-400)', fontSize: 14 }}>
-            Say hi to {match?.name}! 👋
+            Say hi to {match?.name}!
           </div>
         )}
         {messages.map(msg => {
@@ -132,7 +235,6 @@ export default function Chat({ match, navigate }) {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
       <div style={{
         padding: '10px 14px', background: 'var(--white)',
         borderTop: '1px solid var(--gray-200)',
@@ -156,16 +258,15 @@ export default function Chat({ match, navigate }) {
         </button>
       </div>
 
-      {/* Options Modal */}
       {showOptions && (
         <div style={overlayStyle} onClick={() => setShowOptions(false)}>
           <div style={modalStyle} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--blue)', marginBottom: 16 }}>Options</h3>
             {[
-              { label: '📋 Report User', action: () => { setShowOptions(false); setShowReport(true) }, color: 'var(--gray-800)' },
-              { label: '💬 Close Conversation', action: () => { setShowOptions(false); closeConversation() }, color: 'var(--gray-800)' },
-              { label: '💔 Unmatch', action: () => { setShowOptions(false); unmatch() }, color: 'var(--gray-800)' },
-              { label: '🚫 Block User', action: () => { setShowOptions(false); blockUser() }, color: 'var(--red)' },
+              { label: 'Report User', action: () => { setShowOptions(false); setShowReport(true) }, color: 'var(--gray-800)' },
+              { label: 'Close Conversation', action: () => { setShowOptions(false); closeConversation() }, color: 'var(--gray-800)' },
+              { label: 'Unmatch', action: () => { setShowOptions(false); unmatch() }, color: 'var(--gray-800)' },
+              { label: 'Block User', action: () => { setShowOptions(false); blockUser() }, color: 'var(--red)' },
             ].map(item => (
               <button key={item.label} onClick={item.action} style={{
                 display: 'block', width: '100%', padding: '14px 0',
@@ -183,24 +284,33 @@ export default function Chat({ match, navigate }) {
         </div>
       )}
 
-      {showReport && <ReportModal conversationId={conversationId} userId={userId} onClose={() => setShowReport(false)} />}
+      {showReport && (
+        <ReportModal
+          conversationId={conversationId}
+          userId={userId}
+          messages={messages}
+          onClose={() => setShowReport(false)}
+        />
+      )}
     </div>
   )
 }
 
-function ReportModal({ conversationId, userId, onClose }) {
+function ReportModal({ conversationId, userId, messages, onClose }) {
   const [reason, setReason] = useState('')
   const [details, setDetails] = useState('')
-  const [messageId, setMessageId] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
   const reasons = ['Inappropriate behavior', 'Harassment', 'Spam', 'Fake profile', 'Other']
 
   const submit = async () => {
-    if (!reason || !messageId) return
+    if (!reason) return
+
+    const latestMessage = messages?.[messages.length - 1]
+
     setLoading(true)
     try {
-      await fetch(`${API}/reportUser`, {
+      const res = await fetch(`${API}/reportUser`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -208,12 +318,21 @@ function ReportModal({ conversationId, userId, onClose }) {
           conversationID: conversationId,
           reasons: reason,
           details: details,
-          messageID: parseInt(messageId),
+          messageID: latestMessage?.message_id || 1,
         }),
       })
+
+      if (!res.ok) {
+        alert('Could not submit report.')
+        return
+      }
+
       setSubmitted(true)
-    } catch { }
-    setLoading(false)
+    } catch {
+      alert('Could not connect to server. Make sure it is running.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (submitted) {
@@ -221,7 +340,7 @@ function ReportModal({ conversationId, userId, onClose }) {
       <div style={overlayStyle}>
         <div style={modalStyle}>
           <div style={{ textAlign: 'center', padding: '24px 0' }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>Done</div>
             <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--blue)', marginBottom: 8 }}>Report Submitted</h3>
             <p style={{ color: 'var(--gray-600)', fontSize: 14, marginBottom: 24 }}>Our team will review this report.</p>
             <button onClick={onClose} style={{ padding: '12px 32px', background: 'var(--blue)', color: 'white', borderRadius: 10, fontWeight: 700 }}>Done</button>
@@ -236,7 +355,7 @@ function ReportModal({ conversationId, userId, onClose }) {
       <div style={modalStyle} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--blue)' }}>Report User</h3>
-          <button onClick={onClose} style={{ color: 'var(--gray-400)', fontSize: 20 }}>✕</button>
+          <button onClick={onClose} style={{ color: 'var(--gray-400)', fontSize: 20 }}>x</button>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
           {reasons.map(r => (
@@ -251,10 +370,6 @@ function ReportModal({ conversationId, userId, onClose }) {
             </button>
           ))}
         </div>
-        <input value={messageId} onChange={e => setMessageId(e.target.value)}
-          placeholder="Message ID to report (optional)"
-          style={{ width: '100%', padding: '10px 14px', border: '1.5px solid var(--gray-200)', borderRadius: 10, fontSize: 14, outline: 'none', marginBottom: 10 }}
-        />
         <textarea value={details} onChange={e => setDetails(e.target.value)}
           placeholder="Additional details (optional)" rows={3}
           style={{ width: '100%', padding: '10px 14px', border: '1.5px solid var(--gray-200)', borderRadius: 10, fontSize: 14, outline: 'none', resize: 'none', marginBottom: 16 }}

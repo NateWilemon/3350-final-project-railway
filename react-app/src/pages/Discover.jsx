@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 
-const API = 'https://rowdydating.up.railway.app'
+const API = 'http://localhost:3001'
 
 export default function Discover({ navigate }) {
   const [queue, setQueue] = useState([])
   const [index, setIndex] = useState(0)
   const [swipeAnim, setSwipeAnim] = useState(null)
   const [showMatch, setShowMatch] = useState(false)
+  const [newMatchId, setNewMatchId] = useState(null)
+  const [pfpUrls, setPfpUrls] = useState({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -27,6 +29,27 @@ export default function Discover({ navigate }) {
   }, [])
 
   const profile = queue[index]
+  const profileId = profile?.id || profile?.user_id
+  const mainPhoto = profile?.profile_picture || profile?.photos?.[0] || pfpUrls[profileId] || null
+
+  useEffect(() => {
+    if (!profileId || pfpUrls[profileId]) return
+
+    fetch(`${API}/getPFP`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ userID: profileId }),
+    })
+      .then(res => res.ok ? res.blob() : null)
+      .then(blob => {
+        if (!blob) return
+        setPfpUrls(prev => ({
+          ...prev,
+          [profileId]: URL.createObjectURL(blob),
+        }))
+      })
+      .catch(() => {})
+  }, [profileId])
 
   const swipe = async (dir) => {
     const userId = localStorage.getItem('userId')
@@ -47,6 +70,7 @@ export default function Discover({ navigate }) {
       setTimeout(() => {
         setSwipeAnim(null)
         if (data.matched) {
+          setNewMatchId(data.matchID)
           setShowMatch(true)
         } else {
           setIndex(i => i + 1)
@@ -75,8 +99,20 @@ export default function Discover({ navigate }) {
     return (
       <MatchModal
         profile={profile}
-        onMessage={() => { setShowMatch(false); navigate('messages') }}
-        onKeepSwiping={() => { setShowMatch(false); setIndex(i => i + 1) }}
+        photoUrl={mainPhoto}
+        onMessage={() => {
+          setShowMatch(false)
+          if (newMatchId) {
+            navigate('chat', {
+              matchId: newMatchId,
+              ...profile,
+              user_id: profileId,
+            })
+          } else {
+            navigate('messages')
+          }
+        }}
+        onKeepSwiping={() => { setShowMatch(false); setNewMatchId(null); setIndex(i => i + 1) }}
       />
     )
   }
@@ -116,8 +152,8 @@ export default function Discover({ navigate }) {
           opacity: swipeAnim ? 0 : 1,
           transition: swipeAnim ? 'transform 0.35s ease, opacity 0.35s' : 'none',
         }}>
-          {profile.profile_picture ? (
-            <img src={profile.profile_picture} alt={profile.name}
+          {mainPhoto ? (
+            <img src={mainPhoto} alt={profile.name}
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           ) : (
             <div style={{ width: '100%', height: '100%', background: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -202,7 +238,7 @@ function Header() {
   )
 }
 
-function MatchModal({ profile, onMessage, onKeepSwiping }) {
+function MatchModal({ profile, photoUrl, onMessage, onKeepSwiping }) {
   return (
     <div style={{
       minHeight: '100vh', background: 'var(--blue)',
@@ -216,8 +252,8 @@ function MatchModal({ profile, onMessage, onKeepSwiping }) {
         You and {profile?.name} both liked each other
       </p>
       <div style={{ width: 100, height: 100, borderRadius: '50%', overflow: 'hidden', marginBottom: 32, border: '4px solid var(--yellow)', background: 'var(--blue-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {profile?.profile_picture
-          ? <img src={profile.profile_picture} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        {photoUrl
+          ? <img src={photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           : <span style={{ fontSize: 40, fontWeight: 800, color: 'var(--yellow)' }}>{profile?.name?.charAt(0)}</span>
         }
       </div>
