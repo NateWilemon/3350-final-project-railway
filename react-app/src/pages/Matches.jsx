@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-const API = 'http://localhost:3001'
+const API = 'https://rowdydating.up.railway.app'
 
 export default function Matches({ navigate }) {
   const [matches, setMatches] = useState([])

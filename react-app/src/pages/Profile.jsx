@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 
-const API = 'http://localhost:3001'
+const API = 'https://rowdydating.up.railway.app'
 
 function calculateAge(birthdate) {
   const today = new Date()

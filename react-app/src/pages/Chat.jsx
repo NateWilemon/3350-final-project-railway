@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 
-const API = 'http://localhost:3001'
+const API = 'https://rowdydating.up.railway.app'
 
 export default function Chat({ match, navigate }) {
   const [messages, setMessages] = useState([])

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-const API = 'http://localhost:3001'
+const API = 'https://rowdydating.up.railway.app'
 
 export default function Register({ onBack, onNext }) {
   const [email, setEmail] = useState('')
