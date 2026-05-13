@@ -6,22 +6,12 @@ const fs = require('fs');
 const multer = require('multer')
 const path = require('path');
 const upload = multer({ dest: path.join(__dirname, 'photos/') })
-const { Resend } = require('resend')
-const resend = new Resend(process.env.RESEND_API_KEY)
+const Brevo = require('@getbrevo/brevo')
+const brevoClient = Brevo.ApiClient.instance
+brevoClient.authentications['api-key'].apiKey = process.env.BREVO_API_KEY
 const { resolve } = require('dns');
-const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false, // Must be false for 587
-    family: 4,
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD
-    },
-    tls: {
-        rejectUnauthorized: false // Helps if the data center certificate chain is weird
-    }
-});
+
+const transactionalApi = new Brevo.TransactionalEmailsApi()
 
 //generates a one time passcode
 const generateOTP = () => {
@@ -97,12 +87,12 @@ module.exports = function startUser(app, con) {
                         return res.status(401).json({ message: 'Database error' });
                     }
                     try {
-                        //sends OTP email using resend
-                        await resend.emails.send({
-                            from: 'onboarding@resend.dev',
-                            to: email,
+                        //sends OTP email using brevo
+                        await transactionalApi.sendTransacEmail({
+                            sender: { email: process.env.BREVO_SENDER, name: 'Rowdy' },
+                            to: [{ email: email }],
                             subject: 'Email Verification OTP',
-                            html: `
+                            htmlContent: `
                             <div style="font-family: Arial, sans-serif; padding: 20px;">
                                 <h2>Email Verification</h2>
                                 <p>Your OTP for email verification is:</p>
