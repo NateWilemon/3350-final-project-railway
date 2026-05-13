@@ -7,8 +7,8 @@ const multer = require('multer')
 const path = require('path');
 const upload = multer({ dest: path.join(__dirname, 'photos/') })
 const SibApiV3Sdk = require('@getbrevo/brevo')
-const brevoClient = SibApiV3Sdk.ApiClient.instance
-brevoClient.authentications['api-key'].apiKey = process.env.BREVO_API_KEY
+let apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
+apiInstance.setApiKey(SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
 const transactionalApi = new SibApiV3Sdk.TransactionalEmailsApi()
 const { resolve } = require('dns');
 
@@ -89,18 +89,11 @@ module.exports = function startUser(app, con) {
                     }
                     try {
                         //sends OTP email using brevo
-                        await transactionalApi.sendTransacEmail({
+                        await apiInstance.sendTransacEmail({
                             sender: { email: process.env.BREVO_SENDER, name: 'Rowdy' },
                             to: [{ email: email }],
                             subject: 'Email Verification OTP',
-                            htmlContent: `
-                            <div style="font-family: Arial, sans-serif; padding: 20px;">
-                                <h2>Email Verification</h2>
-                                <p>Your OTP for email verification is:</p>
-                                <h1 style="color: #234452; letter-spacing: 5px;">${code}</h1>
-                                <p>This OTP will expire in 30 minutes.</p>
-                            </div>
-                            `,
+                            htmlContent: `...`
                         });
                         return res.status(200).json({ message: 'OTP sent' });
                     } catch (err) {
