@@ -6,16 +6,10 @@ const fs = require('fs');
 const multer = require('multer')
 const path = require('path');
 const upload = multer({ dest: path.join(__dirname, 'photos/') })
-// Destructure the classes directly from the package
 const { TransactionalEmailsApi, TransactionalEmailsApiApiKeys } = require('@getbrevo/brevo');
 
-// Initialize the API instance
-let apiInstance = new TransactionalEmailsApi();
-
-// Set the API Key using the extracted Enum
+const apiInstance = new TransactionalEmailsApi();
 apiInstance.setApiKey(TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
-const { resolve } = require('dns');
-
 
 
 //generates a one time passcode
