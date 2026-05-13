@@ -6,11 +6,18 @@ const fs = require('fs');
 const multer = require('multer')
 const path = require('path');
 const upload = multer({ dest: path.join(__dirname, 'photos/') })
-const { TransactionalEmailsApi, TransactionalEmailsApiApiKeys } = require('@getbrevo/brevo');
+const Brevo = require('@getbrevo/brevo');
 
-const apiInstance = new TransactionalEmailsApi();
-apiInstance.setApiKey(TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
+// Node 22 often wraps CJS requires of ESM packages in a .default property
+const BrevoLib = Brevo.default || Brevo;
 
+// Now use BrevoLib to access the classes
+const apiInstance = new BrevoLib.TransactionalEmailsApi();
+
+apiInstance.setApiKey(
+    BrevoLib.TransactionalEmailsApiApiKeys.apiKey, 
+    process.env.BREVO_API_KEY
+);
 
 //generates a one time passcode
 const generateOTP = () => {
@@ -95,7 +102,12 @@ module.exports = function startUser(app, con) {
                             htmlContent: `<html><body><h1>Your Verification Code</h1><p>Your code is: <strong>${code}</strong></p></body></html>`
                         };
 
-                        await apiInstance.sendTransacEmail(sendSmtpEmail);
+                        await await brevo.transactionalEmails.sendTransacEmail({
+                            sender: { email: process.env.BREVO_SENDER, name: 'Rowdy' },
+                            to: [{ email: email }],
+                            subject: 'Email Verification OTP',
+                            htmlContent: `...`
+                        });
                         return res.status(200).json({ message: 'OTP sent' });
                     } catch (err) {
                         // This logs the actual error from Brevo's servers if the API key is wrong 
