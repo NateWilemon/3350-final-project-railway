@@ -519,7 +519,7 @@ module.exports = function startUser(app, con) {
                         return res.status(500).json({ message: 'Database error' });
                     const photos = results[0].map(photo => ({
                         ...photo,
-                        file_path: `http://localhost:3001/photo/${photo.photo_id}`
+                        file_path: `${process.env.BASE_URL}/photo/${photo.photo_id}`
                     }));
                     return res.status(200).json({ photos });
                 });
