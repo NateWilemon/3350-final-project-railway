@@ -9,12 +9,14 @@ const upload = multer({ dest: path.join(__dirname, 'photos/') })
 const nodemailer = require('nodemailer');
 const { resolve } = require('dns');
 const transporter = nodemailer.createTransport({
-    service: "gmail",
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
     auth: {
         user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
-    },
-});
+        pass: process.env.EMAIL_PASSWORD
+    }
+})
 
 //generates a one time passcode
 const generateOTP = () => {
