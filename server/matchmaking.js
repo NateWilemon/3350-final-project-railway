@@ -129,71 +129,71 @@ module.exports = function startMatchmaking(app, con) {
         });
     });
 
-// API endpoint to close a conversation for one user
-app.post('/closeConversation', (req, res) => {
-    const { userID, conversationID } = req.body;
+    // API endpoint to close a conversation for one user
+    app.post('/closeConversation', (req, res) => {
+        const { userID, conversationID } = req.body;
 
-    if (!userID || !conversationID) {
-        return res.status(400).json({
-            message: 'Send userID and conversationID'
-        });
-    }
+        if (!userID || !conversationID) {
+            return res.status(400).json({
+                message: 'Send userID and conversationID'
+            });
+        }
 
-    con.query(
-        `
+        con.query(
+            `
         UPDATE user_conversations
         SET is_closed = TRUE
         WHERE user_id = ?
           AND conversation_id = ?
         `,
-        [userID, conversationID],
-        (err, result) => {
-            if (err) {
-                return res.status(500).json({
-                    message: 'Database error while closing conversation',
-                    error: err.message
+            [userID, conversationID],
+            (err, result) => {
+                if (err) {
+                    return res.status(500).json({
+                        message: 'Database error while closing conversation',
+                        error: err.message
+                    });
+                }
+
+                if (result.affectedRows === 0) {
+                    return res.status(404).json({
+                        message: 'Conversation not found for this user'
+                    });
+                }
+
+                return res.json({
+                    message: 'Conversation closed for user',
+                    userID,
+                    conversationID
                 });
             }
+        );
+    });
 
-            if (result.affectedRows === 0) {
-                return res.status(404).json({
-                    message: 'Conversation not found for this user'
-                });
-            }
 
-            return res.json({
-                message: 'Conversation closed for user',
-                userID,
-                conversationID
+    // API endpoint to block a user
+    app.post('/blockUser', (req, res) => {
+        const { userID, targetUserID } = req.body;
+
+        if (!userID || !targetUserID) {
+            return res.status(400).json({
+                message: 'Send userID and targetUserID'
             });
         }
-    );
-});
 
+        con.query(
+            'CALL block_user(?, ?)',
+            [userID, targetUserID],
+            (err) => {
+                if (err) {
+                    return res.status(500).json({
+                        message: 'Database error while blocking user',
+                        error: err.message
+                    });
+                }
 
-// API endpoint to block a user
-app.post('/blockUser', (req, res) => {
-    const { userID, targetUserID } = req.body;
-
-    if (!userID || !targetUserID) {
-        return res.status(400).json({
-            message: 'Send userID and targetUserID'
-        });
-    }
-
-    con.query(
-        'CALL block_user(?, ?)',
-        [userID, targetUserID],
-        (err) => {
-            if (err) {
-                return res.status(500).json({
-                    message: 'Database error while blocking user',
-                    error: err.message
-                });
-            }
-
-            con.query(
-                `
+                con.query(
+                    `
                 UPDATE matches
                 SET status = 'closed',
                     closed_at = NOW(),
@@ -201,24 +201,24 @@ app.post('/blockUser', (req, res) => {
                 WHERE (user1_id = ? AND user2_id = ?)
                    OR (user1_id = ? AND user2_id = ?)
                 `,
-                [userID, targetUserID, targetUserID, userID],
-                (err) => {
-                    if (err) {
-                        return res.status(500).json({
-                            message: 'User blocked, but error closing match',
-                            error: err.message
+                    [userID, targetUserID, targetUserID, userID],
+                    (err) => {
+                        if (err) {
+                            return res.status(500).json({
+                                message: 'User blocked, but error closing match',
+                                error: err.message
+                            });
+                        }
+
+                        return res.json({
+                            message: 'User blocked successfully',
+                            blockedUserID: targetUserID
                         });
                     }
-
-                    return res.json({
-                        message: 'User blocked successfully',
-                        blockedUserID: targetUserID
-                    });
-                }
-            );
-        }
-    );
-});
+                );
+            }
+        );
+    });
 
 
 
@@ -322,51 +322,67 @@ app.post('/blockUser', (req, res) => {
         );
     });
 
-// API endpoint to unblock a user
-app.post('/unblockUser', (req, res) => {
-    const { userID, targetUserID } = req.body;
+    // API endpoint to unblock a user
+    app.post('/unblockUser', (req, res) => {
+        const { userID, targetUserID } = req.body;
 
-    if (!userID || !targetUserID) {
-        return res.status(400).json({
-            message: 'Send userID and targetUserID'
-        });
-    }
+        if (!userID || !targetUserID) {
+            return res.status(400).json({
+                message: 'Send userID and targetUserID'
+            });
+        }
 
-    con.query(
-        `
+        con.query(
+            `
         DELETE FROM user_blocks
         WHERE blocker_user_id = ?
           AND blocked_user_id = ?
         `,
-        [userID, targetUserID],
-        (err, result) => {
-            if (err) {
-                return res.status(500).json({
-                    message: 'Database error while unblocking user',
-                    error: err.message
-                });
-            }
+            [userID, targetUserID],
+            (err, result) => {
+                if (err) {
+                    return res.status(500).json({
+                        message: 'Database error while unblocking user',
+                        error: err.message
+                    });
+                }
 
-            return res.json({
-                message: 'User unblocked successfully',
-                unblockedUserID: targetUserID
+                con.query(
+                    `
+                DELETE FROM swipes
+                WHERE (user_id = ? AND target_id = ?)
+                OR (user_id = ? AND target_id = ?)
+                `,
+                    [userID, targetUserID, targetUserID, userID],
+                    (err, result) => {
+                        if (err) {
+                            return res.status(500).json({
+                                message: 'Database error while unblocking user',
+                                error: err.message
+                            });
+                        }
+
+                        return res.json({
+                            message: 'User unblocked successfully',
+                            unblockedUserID: targetUserID
+                        });
+                    });
+            });
+    });
+
+
+    // API endpoint to get users blocked by a user
+    app.get('/blockedUsers/:userId', (req, res) => {
+        const userId = parseInt(req.params.userId);
+
+        if (!userId) {
+            return res.status(400).json({
+                message: 'Missing userId'
             });
         }
-    );
-});
 
-// API endpoint to get users blocked by a user
-app.get('/blockedUsers/:userId', (req, res) => {
-    const userId = parseInt(req.params.userId);
-
-    if (!userId) {
-        return res.status(400).json({
-            message: 'Missing userId'
-        });
-    }
-
-    con.query(
-        `
+        con.query(
+            `
         SELECT
             ub.block_id,
             ub.created_at,
@@ -383,31 +399,31 @@ app.get('/blockedUsers/:userId', (req, res) => {
         WHERE ub.blocker_user_id = ?
         ORDER BY ub.created_at DESC
         `,
-        [userId],
-        (err, blockedUsers) => {
-            if (err) {
-                return res.status(500).json({
-                    message: 'Database error while getting blocked users',
-                    error: err.message
+            [userId],
+            (err, blockedUsers) => {
+                if (err) {
+                    return res.status(500).json({
+                        message: 'Database error while getting blocked users',
+                        error: err.message
+                    });
+                }
+
+                return res.json({
+                    blockedUsers: blockedUsers
                 });
             }
+        );
+    });
+    // API endpoint to get only open conversations for a user
+    app.get('/activeConversations/:userId', (req, res) => {
+        const userId = parseInt(req.params.userId);
 
-            return res.json({
-                blockedUsers: blockedUsers
-            });
+        if (!userId) {
+            return res.status(400).json({ message: 'Missing userId' });
         }
-    );
-});
-   // API endpoint to get only open conversations for a user
-app.get('/activeConversations/:userId', (req, res) => {
-    const userId = parseInt(req.params.userId);
 
-    if (!userId) {
-        return res.status(400).json({ message: 'Missing userId' });
-    }
-
-    con.query(
-        `
+        con.query(
+            `
         SELECT
             c.conversation_id,
             c.match_id,
@@ -424,89 +440,89 @@ app.get('/activeConversations/:userId', (req, res) => {
           AND m.status = 'active'
         ORDER BY c.last_message_at DESC
         `,
-        [userId],
-        (err, conversations) => {
-            if (err) {
-                return res.status(500).json({
-                    message: 'Database error while getting conversations',
-                    error: err.message
+            [userId],
+            (err, conversations) => {
+                if (err) {
+                    return res.status(500).json({
+                        message: 'Database error while getting conversations',
+                        error: err.message
+                    });
+                }
+
+                if (conversations.length === 0) {
+                    return res.json({ conversations: [] });
+                }
+
+                let completed = 0;
+                const convoList = [];
+
+                conversations.forEach((conversation) => {
+                    const otherUserId =
+                        conversation.user1_id === userId
+                            ? conversation.user2_id
+                            : conversation.user1_id;
+
+                    con.query('CALL get_user_profile(?)', [otherUserId], (err, profileResults) => {
+                        completed++;
+
+                        if (!err && profileResults[0] && profileResults[0][0]) {
+                            convoList.push({
+                                conversation_id: conversation.conversation_id,
+                                match_id: conversation.match_id,
+                                last_message_at: conversation.last_message_at,
+                                other_user: profileResults[0][0]
+                            });
+                        }
+
+                        if (completed === conversations.length) {
+                            return res.json({ conversations: convoList });
+                        }
+                    });
                 });
             }
+        );
+    });
 
-            if (conversations.length === 0) {
-                return res.json({ conversations: [] });
-            }
+    // API endpoint to reopen a conversation for one user
+    app.post('/openConversation', (req, res) => {
+        const { userID, conversationID } = req.body;
 
-            let completed = 0;
-            const convoList = [];
-
-            conversations.forEach((conversation) => {
-                const otherUserId =
-                    conversation.user1_id === userId
-                        ? conversation.user2_id
-                        : conversation.user1_id;
-
-                con.query('CALL get_user_profile(?)', [otherUserId], (err, profileResults) => {
-                    completed++;
-
-                    if (!err && profileResults[0] && profileResults[0][0]) {
-                        convoList.push({
-                            conversation_id: conversation.conversation_id,
-                            match_id: conversation.match_id,
-                            last_message_at: conversation.last_message_at,
-                            other_user: profileResults[0][0]
-                        });
-                    }
-
-                    if (completed === conversations.length) {
-                        return res.json({ conversations: convoList });
-                    }
-                });
+        if (!userID || !conversationID) {
+            return res.status(400).json({
+                message: 'Send userID and conversationID'
             });
         }
-    );
-});
 
-// API endpoint to reopen a conversation for one user
-app.post('/openConversation', (req, res) => {
-    const { userID, conversationID } = req.body;
-
-    if (!userID || !conversationID) {
-        return res.status(400).json({
-            message: 'Send userID and conversationID'
-        });
-    }
-
-    con.query(
-        `
+        con.query(
+            `
         UPDATE user_conversations
         SET is_closed = FALSE
         WHERE user_id = ?
           AND conversation_id = ?
         `,
-        [userID, conversationID],
-        (err, result) => {
-            if (err) {
-                return res.status(500).json({
-                    message: 'Database error while reopening conversation',
-                    error: err.message
+            [userID, conversationID],
+            (err, result) => {
+                if (err) {
+                    return res.status(500).json({
+                        message: 'Database error while reopening conversation',
+                        error: err.message
+                    });
+                }
+
+                if (result.affectedRows === 0) {
+                    return res.status(404).json({
+                        message: 'Conversation not found for this user'
+                    });
+                }
+
+                return res.json({
+                    message: 'Conversation reopened for user',
+                    userID,
+                    conversationID
                 });
             }
-
-            if (result.affectedRows === 0) {
-                return res.status(404).json({
-                    message: 'Conversation not found for this user'
-                });
-            }
-
-            return res.json({
-                message: 'Conversation reopened for user',
-                userID,
-                conversationID
-            });
-        }
-    );
-});
+        );
+    });
 
 
 
@@ -598,7 +614,7 @@ app.post('/openConversation', (req, res) => {
         });
     });
 
-       // API endpoint to unmatch two users
+    // API endpoint to unmatch two users
     app.post('/unmatch', (req, res) => {
         const { matchID } = req.body;
 
@@ -649,92 +665,92 @@ app.post('/openConversation', (req, res) => {
             });
         }
 
-       con.query(
-    `
+        con.query(
+            `
     SELECT m.user1_id, m.user2_id
     FROM conversations c
     JOIN matches m
         ON c.match_id = m.match_id
     WHERE c.conversation_id = ?
     `,
-    [conversationID],
-    (err, rows) => {
-        if (err) {
-            return res.status(500).json({
-                message: 'Database error while checking conversation',
-                error: err.message
-            });
-        }
+            [conversationID],
+            (err, rows) => {
+                if (err) {
+                    return res.status(500).json({
+                        message: 'Database error while checking conversation',
+                        error: err.message
+                    });
+                }
 
-        if (rows.length === 0) {
-            return res.status(404).json({
-                message: 'Conversation not found'
-            });
-        }
+                if (rows.length === 0) {
+                    return res.status(404).json({
+                        message: 'Conversation not found'
+                    });
+                }
 
-        const match = rows[0];
-        const otherUserID =
-            match.user1_id === userID ? match.user2_id : match.user1_id;
+                const match = rows[0];
+                const otherUserID =
+                    match.user1_id === userID ? match.user2_id : match.user1_id;
 
-        con.query(
-            `
+                con.query(
+                    `
             SELECT block_id
             FROM user_blocks
             WHERE (blocker_user_id = ? AND blocked_user_id = ?)
                OR (blocker_user_id = ? AND blocked_user_id = ?)
             `,
-            [userID, otherUserID, otherUserID, userID],
-            (err, blockRows) => {
-                if (err) {
-                    return res.status(500).json({
-                        message: 'Database error while checking block status',
-                        error: err.message
-                    });
-                }
-
-                if (blockRows.length > 0) {
-                    return res.status(403).json({
-                        message: 'Cannot send message because one user has blocked the other'
-                    });
-                }
-
-                con.query(
-                    'CALL send_message(?, ?, ?)',
-                    [conversationID, userID, body],
-                    (err) => {
+                    [userID, otherUserID, otherUserID, userID],
+                    (err, blockRows) => {
                         if (err) {
                             return res.status(500).json({
-                                message: 'Database error while sending message',
+                                message: 'Database error while checking block status',
                                 error: err.message
                             });
                         }
 
-                      con.query(
-                     `
+                        if (blockRows.length > 0) {
+                            return res.status(403).json({
+                                message: 'Cannot send message because one user has blocked the other'
+                            });
+                        }
+
+                        con.query(
+                            'CALL send_message(?, ?, ?)',
+                            [conversationID, userID, body],
+                            (err) => {
+                                if (err) {
+                                    return res.status(500).json({
+                                        message: 'Database error while sending message',
+                                        error: err.message
+                                    });
+                                }
+
+                                con.query(
+                                    `
                     UPDATE user_conversations
                     SET is_closed = FALSE
                     WHERE conversation_id = ?
                     `,
-                [conversationID],
-                (err) => {
-                 if (err) {
-                 return res.status(500).json({
-                message: 'Message sent, but error reopening conversation',
-                error: err.message
-            });
-        }
+                                    [conversationID],
+                                    (err) => {
+                                        if (err) {
+                                            return res.status(500).json({
+                                                message: 'Message sent, but error reopening conversation',
+                                                error: err.message
+                                            });
+                                        }
 
-        return res.json({
-            message: 'Message sent and conversation reopened'
-        });
-    }
-);
+                                        return res.json({
+                                            message: 'Message sent and conversation reopened'
+                                        });
+                                    }
+                                );
+                            }
+                        );
                     }
                 );
             }
         );
-    }
-);
     });
 
 };
