@@ -12,7 +12,7 @@ brevoClient.authentications['api-key'].apiKey = process.env.BREVO_API_KEY
 const transactionalApi = new TransactionalEmailsApi()
 const { resolve } = require('dns');
 
-const transactionalApi = new Brevo.TransactionalEmailsApi()
+
 
 //generates a one time passcode
 const generateOTP = () => {
