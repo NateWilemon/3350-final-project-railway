@@ -34,7 +34,10 @@ module.exports = function startUser(app, con) {
         }
 
         con.query('SELECT * FROM users WHERE email = ?', [email], async (err, rows) => {
-            if (err) return res.json({ message: 'Database error' });
+            if (err){
+                console.log('Select error:', err.message)
+                return res.json({ message: 'Database error' });
+                    }
             if (rows.length > 0)
                 return res.json({ message: 'Email is already in use' });
 
@@ -47,6 +50,7 @@ module.exports = function startUser(app, con) {
                     if (err.sqlState === '45000') {
                         return res.json({ message: err.message });
                     }
+                    console.log('Select error:', err.message)
                     return res.json({ message: 'Database error' });
                 }
 
