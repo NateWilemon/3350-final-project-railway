@@ -6,23 +6,14 @@ const fs = require('fs');
 const multer = require('multer')
 const path = require('path');
 const upload = multer({ dest: path.join(__dirname, 'photos/') })
-const Brevo = require('@getbrevo/brevo');
-
-// Node 22 often wraps CJS requires of ESM packages in a .default property
-const BrevoLib = Brevo.default || Brevo;
-
-// Now use BrevoLib to access the classes
-const apiInstance = new BrevoLib.TransactionalEmailsApi();
-
-apiInstance.setApiKey(
-    BrevoLib.TransactionalEmailsApiApiKeys.apiKey, 
-    process.env.BREVO_API_KEY
-);
+const Brevo = require('@getbrevo/brevo')
+const apiInstance = new Brevo.TransactionalEmailsApi()
+apiInstance.authentications['api-key'].apiKey = process.env.BREVO_API_KEY
 
 //generates a one time passcode
 const generateOTP = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
-};
+}
 
 
 //exports calls to index and connects to DB from index
@@ -93,25 +84,15 @@ module.exports = function startUser(app, con) {
                         return res.status(401).json({ message: 'Database error' });
                     }
                     try {
-                        // It's best to define the email object clearly
-                        const sendSmtpEmail = {
+                        //sends OTP email using brevo
+                        await apiInstance.sendTransacEmail({
                             sender: { email: process.env.BREVO_SENDER, name: 'Rowdy' },
                             to: [{ email: email }],
                             subject: 'Email Verification OTP',
-                            // Use backticks (``) to insert the 6-digit code into the email body
                             htmlContent: `<html><body><h1>Your Verification Code</h1><p>Your code is: <strong>${code}</strong></p></body></html>`
-                        };
-
-                        await await brevo.transactionalEmails.sendTransacEmail({
-                            sender: { email: process.env.BREVO_SENDER, name: 'Rowdy' },
-                            to: [{ email: email }],
-                            subject: 'Email Verification OTP',
-                            htmlContent: `...`
                         });
                         return res.status(200).json({ message: 'OTP sent' });
                     } catch (err) {
-                        // This logs the actual error from Brevo's servers if the API key is wrong 
-                        // or the sender email isn't verified.
                         console.error('Brevo Error:', err.response ? err.response.body : err);
                         return res.status(500).json({ message: 'Failed to send email' });
                     }
