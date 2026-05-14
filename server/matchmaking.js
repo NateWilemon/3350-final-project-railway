@@ -31,7 +31,12 @@ module.exports = function startMatchmaking(app, con) {
                 return res.json({ message: 'Database error' });
             if (rows.length === 0)
                 return res.json({ message: 'UserId does not exist' });
-
+        const user = rows[0];
+        if(!user.email_verified){
+            return res.status(403).json({
+                message: 'Please verify your email before you can access matchmaking'
+            })
+        }
             //stores user profile
             con.query('CALL get_user_profile(?)',
                 [userID],
